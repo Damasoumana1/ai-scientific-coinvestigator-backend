@@ -1,0 +1,28 @@
+# Fichiers de configuration de l'environnement virtuel
+.venv/
+venv/
+env/
+
+# Fichiers de cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Fichiers de configuration d'environnement et secrets
+.env
+*.env.local
+
+# Fichiers de configuration des éditeurs de code
+.idea/
+.vscode/
+
+# Artefacts de test et de couverture de code
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Fichiers de base de données SQLite (pour les logs ou tests)
+*.db
+*.sqlite3
+logs/reasoning_memory.db

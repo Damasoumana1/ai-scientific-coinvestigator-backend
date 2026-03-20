@@ -1,0 +1,159 @@
+# Docker Compose for AI Scientific Co-Investigator
+
+services:
+  # ─────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: scoinvestigator-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scoinvestigator
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onion123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d scoinvestigator"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # Qdrant Vector Database
+  # ─────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: scoinvestigator-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-your-secret-key}
+
+  # ─────────────────────────────────────────
+  # Redis (Celery broker & result backend)
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: scoinvestigator-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────
+  # FastAPI Backend
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scoinvestigator-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-onion123}@postgres:5432/scoinvestigator
+      VECTOR_DB_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-your-secret-key}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      K2_THINK_API_KEY: ${K2_THINK_API_KEY}
+      K2_THINK_API_URL: ${K2_THINK_API_URL:-https://api.k2think.com/v1}
+      SECRET_KEY: ${SECRET_KEY:-dev-key-change-in-production}
+      ALGORITHM: ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      ALLOWED_ORIGINS: '["http://localhost:3000", "http://frontend:3000"]'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+      - ./uploaded_files:/app/uploaded_files
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ─────────────────────────────────────────
+  # Celery Worker
+  # ─────────────────────────────────────────
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: scoinvestigator-celery
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-onion123}@postgres:5432/scoinvestigator
+      VECTOR_DB_URL: http://qdrant:6333
+      QDRANT_API_KEY: ${QDRANT_API_KEY:-your-secret-key}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      K2_THINK_API_KEY: ${K2_THINK_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+    volumes:
+      - ./app:/app/app
+      - ./logs:/app/logs
+      - ./uploaded_files:/app/uploaded_files
+    healthcheck:
+      disable: true
+    command: celery -A app.core.celery:celery_app worker --loglevel=info
+
+  # ─────────────────────────────────────────
+  # Next.js Frontend
+  # ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./ai-scientific-coinvestigator-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000
+    container_name: scoinvestigator-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  redis_data:
+
+networks:
+  default:
+    name: scoinvestigator-network

@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Git
+.git/
+.gitignore
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+logs/
+*.log
+
+# Uploaded files (runtime data)
+uploaded_files/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Frontend (has its own Docker context)
+ai-scientific-coinvestigator-frontend/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (secrets)
+.env
+.env.*
+
+# Zencoder / dev tools
+.zencoder/
+.zenflow/
+
+# Alembic (migrations generated at runtime)
+alembic/versions/

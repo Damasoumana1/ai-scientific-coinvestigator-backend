@@ -1,0 +1,33 @@
+# Projects to ignore for backend deployment
+ai-scientific-coinvestigator-frontend/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE files
+.vscode/
+.idea/
+
+# Node modules
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Frontend specific
+ai-scientific-coinvestigator-frontend/.next/
+ai-scientific-coinvestigator-frontend/out/
+ai-scientific-coinvestigator-frontend/build/
+
+# Project specific
+uploaded_files/
+logs/
