@@ -25,6 +25,7 @@ class UserRepository(BaseRepository[User, UserCreate, UserCreate]):
         self,
         email: str,
         name: str,
+        hashed_password: str,
         institution: Optional[str] = None,
         role: Optional[str] = None
     ) -> User:
@@ -32,6 +33,7 @@ class UserRepository(BaseRepository[User, UserCreate, UserCreate]):
         user = User(
             email=email,
             name=name,
+            hashed_password=hashed_password,
             institution=institution,
             role=role
         )
@@ -40,4 +42,11 @@ class UserRepository(BaseRepository[User, UserCreate, UserCreate]):
         self.db.refresh(user)
         return user
     
-    # authenticate removed as there is no password in SQL schema
+    def authenticate(self, email: str, password: str) -> Optional[User]:
+        """Authentifie un utilisateur (vérifie email et password hash)"""
+        user = self.get_by_email(email)
+        if not user or not user.hashed_password:
+            return None
+        if not verify_password(password, user.hashed_password):
+            return None
+        return user

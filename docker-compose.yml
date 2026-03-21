@@ -63,7 +63,7 @@ services:
     container_name: scoinvestigator-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8000:7860"
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-onion123}@postgres:5432/scoinvestigator
       VECTOR_DB_URL: http://qdrant:6333
@@ -91,7 +91,7 @@ services:
       - ./app:/app/app
       - ./logs:/app/logs
       - ./uploaded_files:/app/uploaded_files
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 7860 --reload
 
   # ─────────────────────────────────────────
   # Celery Worker

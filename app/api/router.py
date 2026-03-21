@@ -2,11 +2,20 @@
 API Router principal
 """
 from fastapi import APIRouter
-from app.api.routes import users, projects, papers, analysis, protocols, discovery
+from app.api.routes import (
+    users, 
+    projects, 
+    papers, 
+    analysis, 
+    protocols, 
+    discovery,
+    auth
+)
 
 router = APIRouter()
 
 # Include all route groups
+router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 router.include_router(users.router, prefix="/users", tags=["Users"])
 router.include_router(projects.router, prefix="/projects", tags=["Projects"])
 router.include_router(papers.router, prefix="/papers", tags=["Papers"])
