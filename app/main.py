@@ -43,6 +43,8 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown")
 
 
+from starlette.middleware.sessions import SessionMiddleware
+
 # Create FastAPI app
 app = FastAPI(
     title=settings.API_TITLE,
@@ -51,6 +53,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Session middleware (required for Authlib/Google OAuth)
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # CORS middleware — origins controlled via ALLOWED_ORIGINS in .env
 app.add_middleware(
