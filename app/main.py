@@ -36,8 +36,11 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created / verified successfully")
     except Exception as e:
-        logger.error(f"Could not connect to database: {e}")
-        logger.error("Make sure PostgreSQL is running on localhost:5432")
+        logger.error(f"CRITICAL: Could not connect to database or create tables: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Check your DATABASE_URL and ensure the database is reachable.")
+        if "ssl" in str(e).lower():
+            logger.error("SSL Error detected. Try adding ?sslmode=require to your DATABASE_URL.")
     logger.info("Application startup")
     yield
     logger.info("Application shutdown")

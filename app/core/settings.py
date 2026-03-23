@@ -1,6 +1,7 @@
 """
 Core Settings & Configuration
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Optional
 
@@ -19,6 +20,14 @@ class Settings(BaseSettings):
 
     # Database — REQUIRED: must be set in .env
     DATABASE_URL: str = "postgresql://user:onion123@localhost:5432/scoinvestigator"
+    
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def validate_database_url(cls, v: str) -> str:
+        if v and v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql://", 1)
+        return v
+
     DB_ECHO: bool = False
 
     # Security — REQUIRED: must be set in .env

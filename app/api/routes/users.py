@@ -116,11 +116,21 @@ async def register_and_login(user: UserCreate, db: Session = Depends(get_db)):
         )
         return {"access_token": token, "token_type": "bearer", "user": {"id": str(new_user.id), "name": new_user.name, "email": new_user.email}}
     except Exception as e:
-        if isinstance(e, ValueError):
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        logger.error(f"Registration error: {str(e)}")
+        
+        # Capture conflict errors (user already exists)
+        if isinstance(e, ValueError) or "unique constraint" in str(e).lower() or "already exists" in str(e).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail="User with this email already exists."
+            )
+        
+        # Determine if it's a database-related error
+        is_db_error = any(term in str(e).lower() for term in ["operationalerror", "connection", "refused", "psycopg2", "target machine actively refused"])
         
         # Fallback to Demo Mode if DB is down (Dev only)
-        if ("OperationalError" in str(type(e)) or "connection" in str(e).lower()) and settings.ENVIRONMENT == "development":
+        if is_db_error and settings.ENVIRONMENT == "development":
+            logger.warning("Database unavailable. Falling back to Demo Mode for registration.")
             mock_id = str(uuid.uuid4())
             token = create_access_token(
                 data={"sub": mock_id, "demo": True},
@@ -132,7 +142,12 @@ async def register_and_login(user: UserCreate, db: Session = Depends(get_db)):
                 "user": {"id": mock_id, "name": user.name, "email": user.email},
                 "mode": "demo"
             }
-        raise e
+            
+        logger.exception("Unexpected error during registration")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 
 @router.get("/me", response_model=UserResponse)
