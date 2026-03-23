@@ -1,5 +1,10 @@
 import bcrypt
 import hashlib
+from datetime import datetime, timedelta
+from typing import Optional
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from app.core.settings import settings
 
 # Fix for passlib/bcrypt 4.0 compatibility
 # Passlib 1.7.4 looks for bcrypt.__about__.__version__ which is missing in bcrypt 4.0+
