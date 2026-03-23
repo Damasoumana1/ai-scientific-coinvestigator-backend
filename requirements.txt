@@ -1,5 +1,7 @@
-# Core Framework (Cache bust: 2026-03-21)
+# Core Framework (Cache bust: 2026-03-23)
 fastapi==0.104.1
+starlette==0.27.0
+itsdangerous==2.1.2
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 pydantic==2.5.0
