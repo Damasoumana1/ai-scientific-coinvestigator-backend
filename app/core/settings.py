@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     API_VERSION: str = "1.0.0"
     API_DESCRIPTION: str = "Advanced AI system for multi-document scientific analysis and experimental protocol design"
 
+    # Environment
+    ENVIRONMENT: str = "development"
+    DEBUG: bool = True
+
     # Database — REQUIRED: must be set in .env
     DATABASE_URL: str = "postgresql://user:onion123@localhost:5432/scoinvestigator"
     DB_ECHO: bool = False
