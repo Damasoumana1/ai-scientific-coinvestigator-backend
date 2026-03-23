@@ -1,23 +1,29 @@
-"""
-Security utilities
-"""
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from app.core.settings import settings
+import bcrypt
+import hashlib
 
+# Fix for passlib/bcrypt 4.0 compatibility
+# Passlib 1.7.4 looks for bcrypt.__about__.__version__ which is missing in bcrypt 4.0+
+if not hasattr(bcrypt, "__about__"):
+    class About:
+        __version__ = bcrypt.__version__
+    bcrypt.__about__ = About()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    """Hache un mot de passe"""
+    """Hache un mot de passe (avec support pour > 72 caractères via pre-hash)"""
+    # Bcrypt a une limite de 72 octets. 
+    # Si le mdp est plus long, on le hache d'abord en SHA-256 pour garder une longueur fixe.
+    if len(password.encode('utf-8')) > 72:
+        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Vérifie un mot de passe"""
+    """Vérifie un mot de passe (avec support pour > 72 caractères via pre-hash)"""
+    if len(plain_password.encode('utf-8')) > 72:
+        plain_password = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
     return pwd_context.verify(plain_password, hashed_password)
 
 
