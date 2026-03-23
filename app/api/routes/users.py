@@ -11,6 +11,7 @@ from app.core.security import create_access_token
 from app.db.repositories.user_repo import UserRepository
 from datetime import timedelta
 from app.core.settings import settings
+from app.core.logging import logger
 import uuid
 
 router = APIRouter()
