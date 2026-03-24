@@ -80,7 +80,7 @@ This backend is designed to run in a containerized environment (like Hugging Fac
 The following secrets are required:
 - `DATABASE_URL`: Supabase connection string.
 - `SECRET_KEY`: Secure random string for JWT.
-- `OPENAI_API_KEY`: OpenAI (or compatible) API key.
+- `K2_THINK_API_KEY`: K2 Think V2 API key for deep reasoning.
 - `QDRANT_URL` & `QDRANT_API_KEY`: Connectivity to Qdrant.
 - `CELERY_BROKER_URL`: Upstash Redis URL.
 
