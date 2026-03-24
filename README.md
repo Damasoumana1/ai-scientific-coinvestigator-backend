@@ -69,12 +69,13 @@ graph TD
 - **Relational Database:** [PostgreSQL](https://www.postgresql.org/) ([Supabase](https://supabase.com/))
 - **Cache/Broker:** [Redis](https://redis.io/) ([Upstash](https://upstash.com/))
 - **Containerization:** [Docker](https://www.docker.com/)
+- **Hosting / Deployment:** **[Hugging Face Spaces](https://huggingface.co/spaces)**
 
 ---
 
 ## ⚙️ Deployment
 
-This backend is designed to run in a containerized environment (like Hugging Face Spaces or AWS).
+This backend is fully containerized and currently **deployed on Hugging Face Spaces** for robust, scalable hosting.
 
 ### Prerequisites
 - **Supabase**: Relational Database setup.
