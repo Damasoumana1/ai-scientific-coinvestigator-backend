@@ -41,6 +41,11 @@ Scientific research is often hindered by the massive volume of existing literatu
 - Every decision and reasoning step is logged for transparency.
 - Ensures reproducibility, a cornerstone of scientific integrity.
 
+### 📚 6. Real-Time Literature Search
+- Seamless integration with the **ArXiv API**.
+- Fetch and analyze the latest scientific papers in real-time.
+- Automatically incorporate live research data into the deep reasoning pipeline.
+
 ---
 
 ## 🛠️ Technical Architecture
