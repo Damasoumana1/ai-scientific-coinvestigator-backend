@@ -88,4 +88,4 @@ The following secrets are required:
 
 ## 📄 Ownership & License
 
-This project is the intellectual property of **[Soumana Dama](https://www.linkedin.com/in/soumana-dama/)** ([GitHub Profile](https://github.com/Damasoumana1)). All rights reserved.
+This project is the intellectual property of **[Soumana Dama](https://www.linkedin.com/in/soumana-dama-445096253/)** ([GitHub Profile](https://github.com/Damasoumana1)). All rights reserved.
