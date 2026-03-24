@@ -86,6 +86,6 @@ The following secrets are required:
 
 ---
 
-## 📄 License
+## 📄 Ownership & License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is the intellectual property of **[Soumana Dama](https://www.linkedin.com/in/soumana-dama/)** ([GitHub Profile](https://github.com/Damasoumana1)). All rights reserved.
