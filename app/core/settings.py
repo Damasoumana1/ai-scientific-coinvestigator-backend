@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Frontend URL (Used for OAuth redirects)
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # CORS — comma-separated list of allowed origins
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 

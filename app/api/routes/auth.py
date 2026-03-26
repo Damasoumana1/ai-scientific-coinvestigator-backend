@@ -2,6 +2,7 @@
 Routes pour l'authentification OAuth2 (Google)
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from authlib.integrations.starlette_client import OAuth
 from app.dependencies import get_db
@@ -70,15 +71,8 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         
-        return {
-            "access_token": access_token, 
-            "token_type": "bearer", 
-            "user": {
-                "id": str(user.id), 
-                "name": user.name, 
-                "email": user.email
-            }
-        }
+        redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={access_token}"
+        return RedirectResponse(url=redirect_url)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
