@@ -33,8 +33,14 @@ async def login_google(request: Request):
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Google OAuth is not configured on the server."
         )
-    
+
+    # Always use the explicit setting — never derive from request.url
+    # (Hugging Face proxies strip https → causes redirect_uri mismatch)
     redirect_uri = settings.GOOGLE_REDIRECT_URI
+
+    # Tell Authlib the real scheme so the state URL is correct too
+    request.scope["scheme"] = "https"
+
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -74,7 +80,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={access_token}"
         return RedirectResponse(url=redirect_url)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"OAuth authentication failed: {str(e)}"
-        )
+        # Redirect to frontend with error info instead of showing raw JSON
+        error_msg = str(e).replace('"', "'")
+        frontend_error_url = f"{settings.FRONTEND_URL}/login?error={error_msg[:200]}"
+        return RedirectResponse(url=frontend_error_url)
