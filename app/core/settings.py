@@ -38,12 +38,17 @@ class Settings(BaseSettings):
     # Frontend URL (Used for OAuth redirects)
     FRONTEND_URL: str = "http://localhost:3000"
 
-    # CORS — comma-separated list of allowed origins
+    # CORS — array or comma-separated list of allowed origins
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
-
-    # K2 Think API
-    K2_THINK_API_KEY: Optional[str] = None
-    K2_THINK_API_URL: str = "https://api.k2think.com/v1"
+    
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: str | List[str]) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",") if i.strip()]
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
 
     # OpenAI/LLM
     OPENAI_API_KEY: Optional[str] = None
