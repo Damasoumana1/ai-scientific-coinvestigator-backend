@@ -36,10 +36,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Frontend URL (Used for OAuth redirects)
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://ai-scientific-coinvestigator-ui.vercel.app"
 
     # CORS — array or comma-separated list of allowed origins
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "https://ai-scientific-coinvestigator-ui.vercel.app"]
     
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/api/v1/auth/google/callback"
+    GOOGLE_REDIRECT_URI: str = "https://dama12-scientific-backend.hf.space/api/v1/auth/google/callback"
 
     model_config = SettingsConfigDict(
         env_file=".env",
