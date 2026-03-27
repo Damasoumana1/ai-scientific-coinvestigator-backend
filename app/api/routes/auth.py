@@ -44,25 +44,40 @@ async def login_google(request: Request):
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
+from app.core.logging import logger
+
 @router.get("/google/callback")
 async def auth_google(request: Request, db: Session = Depends(get_db)):
     """Gère le retour de Google après authentification"""
     try:
+        logger.info("Google callback received")
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
+        
         if not user_info:
+            logger.error("No userinfo found in Google token")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not retrieve user info from Google."
             )
             
         email = user_info.get('email')
-        name = user_info.get('name')
+        name = user_info.get('name') or email.split('@')[0] if email else "User"
         
+        logger.info(f"Google login attempt for email: {email}")
+        
+        if not email:
+            logger.error("Email not provided by Google")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email not provided by Google."
+            )
+            
         user_repo = UserRepository(db)
         user = user_repo.get_by_email(email)
         
         if not user:
+            logger.info(f"Creating new user for email: {email}")
             # Créer l'utilisateur s'il n'existe pas (sans mot de passe)
             user = user_repo.create_user(
                 email=email,
@@ -77,9 +92,11 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         
+        logger.info(f"Successfully authenticated user: {email}")
         redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={access_token}"
         return RedirectResponse(url=redirect_url)
     except Exception as e:
+        logger.error(f"Google OAuth error: {str(e)}", exc_info=True)
         # Redirect to frontend with error info instead of showing raw JSON
         error_msg = str(e).replace('"', "'")
         frontend_error_url = f"{settings.FRONTEND_URL}/login?error={error_msg[:200]}"
