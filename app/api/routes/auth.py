@@ -29,6 +29,7 @@ oauth.register(
 async def login_google(request: Request):
     """Redirige vers la page de connexion Google"""
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        logger.error("Google OAuth client ID or secret missing in configuration")
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail="Google OAuth is not configured on the server."
@@ -37,11 +38,23 @@ async def login_google(request: Request):
     # Always use the explicit setting — never derive from request.url
     # (Hugging Face proxies strip https → causes redirect_uri mismatch)
     redirect_uri = settings.GOOGLE_REDIRECT_URI
+    
+    logger.info(f"Initiating Google OAuth login")
+    logger.info(f"Using Google Redirect URI: {redirect_uri}")
+    logger.info(f"Request Host Header: {request.headers.get('host')}")
+    logger.info(f"Request X-Forwarded-Proto: {request.headers.get('x-forwarded-proto')}")
 
     # Tell Authlib the real scheme so the state URL is correct too
     request.scope["scheme"] = "https"
 
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    try:
+        return await oauth.google.authorize_redirect(request, redirect_uri)
+    except Exception as e:
+        logger.error(f"Error during oauth authorize_redirect: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OAuth authorization error: {str(e)}"
+        )
 
 
 from app.core.logging import logger
@@ -49,8 +62,15 @@ from app.core.logging import logger
 @router.get("/google/callback")
 async def auth_google(request: Request, db: Session = Depends(get_db)):
     """Gère le retour de Google après authentification"""
+    logger.info("Google callback route reached")
+    
+    # Ensure scheme is https for callback as well (important for Authlib internal state validation)
+    request.scope["scheme"] = "https"
+    
     try:
-        logger.info("Google callback received")
+        logger.info(f"Callback full URL: {request.url}")
+        logger.info(f"Callback Params: {dict(request.query_params)}")
+        
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
         
@@ -64,7 +84,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         email = user_info.get('email')
         name = user_info.get('name') or email.split('@')[0] if email else "User"
         
-        logger.info(f"Google login attempt for email: {email}")
+        logger.info(f"Google login successful for email: {email}")
         
         if not email:
             logger.error("Email not provided by Google")
@@ -78,7 +98,6 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         
         if not user:
             logger.info(f"Creating new user for email: {email}")
-            # Créer l'utilisateur s'il n'existe pas (sans mot de passe)
             user = user_repo.create_user(
                 email=email,
                 name=name,
@@ -96,8 +115,8 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         redirect_url = f"{settings.FRONTEND_URL}/auth/callback?token={access_token}"
         return RedirectResponse(url=redirect_url)
     except Exception as e:
-        logger.error(f"Google OAuth error: {str(e)}", exc_info=True)
-        # Redirect to frontend with error info instead of showing raw JSON
+        logger.error(f"Google OAuth callback error: {str(e)}", exc_info=True)
+        # Redirect to frontend with error info
         error_msg = str(e).replace('"', "'")
         frontend_error_url = f"{settings.FRONTEND_URL}/login?error={error_msg[:200]}"
         return RedirectResponse(url=frontend_error_url)
