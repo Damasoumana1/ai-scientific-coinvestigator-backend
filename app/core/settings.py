@@ -83,6 +83,13 @@ class Settings(BaseSettings):
     # If not set, the app will try to construct it from the request URL
     GOOGLE_REDIRECT_URI: Optional[str] = None
 
+    @field_validator("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", mode="before")
+    @classmethod
+    def strip_whitespace(cls, v: str | None) -> str | None:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

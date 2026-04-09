@@ -47,9 +47,14 @@ async def login_google(request: Request):
             base_url = base_url.replace("http://", "https://")
         redirect_uri = f"{base_url}/api/v1/auth/google/callback"
     
+    # MASK CLIENT ID FOR LOGGING (e.g. 6300...eat64)
+    cid = settings.GOOGLE_CLIENT_ID or "MISSING"
+    masked_cid = f"{cid[:10]}...{cid[-10:]}" if len(cid) > 20 else cid
+    
     logger.info(f"Initiating Google OAuth login")
     logger.info(f"Using Google Redirect URI: {redirect_uri}")
-    logger.info(f"Request Host Header: {request.headers.get('host')}")
+    logger.info(f"Using Client ID: {masked_cid}")
+    logger.info(f"Request Headers: {dict(request.headers)}")
     
     # Ensure Authlib uses https for the state param if we are in production
     if "https" in redirect_uri:
