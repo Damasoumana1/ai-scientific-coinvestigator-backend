@@ -56,10 +56,6 @@ async def login_google(request: Request):
     logger.info(f"Using Client ID: {masked_cid}")
     logger.info(f"Request Headers: {dict(request.headers)}")
     
-    # Ensure Authlib uses https for the state param if we are in production
-    if "https" in redirect_uri:
-        request.scope["scheme"] = "https"
-
     try:
         return await oauth.google.authorize_redirect(request, redirect_uri)
     except Exception as e:

@@ -46,7 +46,10 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown")
 
 
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.responses import Response
 
 # Create FastAPI app
 app = FastAPI(
@@ -56,8 +59,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# --- PROXY FIX MIDDLEWARE (Required for Hugging Face / OAuth) ---
+@app.middleware("http")
+async def fix_proxy_headers(request: Request, call_next):
+    # If we are behind a proxy that terminates SSL, force the scheme to https
+    # This prevents 'MismatchingStateError' in Authlib/OAuth
+    if request.headers.get("x-forwarded-proto") == "https":
+        request.scope["scheme"] = "https"
+    
+    # Optional: Fix Host if forwarded
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host:
+        request.scope["server"] = (forwarded_host, 443)
+        
+    response = await call_next(request)
+    return response
+
 # Session middleware (required for Authlib/Google OAuth)
-app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
+# 'same_site=lax' is essential for cross-site redirects (Google -> HF)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=settings.SECRET_KEY,
+    same_site="lax",
+    https_only=False  # Must be False if perceive as http internally, but we fix scheme above
+)
 
 # CORS middleware — origins controlled via ALLOWED_ORIGINS in .env
 app.add_middleware(
