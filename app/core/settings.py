@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     LLM_MODEL: str = "gpt-4-turbo"
 
+    # K2 Think (Unique AI Engine for Hackathon)
+    K2_THINK_API_KEY: Optional[str] = None
+    K2_THINK_API_URL: str = "https://api.k2think.ai/v1"
+
     # RAG
     EMBEDDINGS_MODEL: str = "text-embedding-3-small"
     VECTOR_DB_URL: str = "http://localhost:6333"  # Qdrant
