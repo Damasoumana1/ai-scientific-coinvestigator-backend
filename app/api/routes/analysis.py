@@ -101,23 +101,23 @@ async def get_specific_analysis(
     # On exécute ceci AVANT toute recherche en base de données pour éviter les 404
     if str(analysis_id).startswith("demo_real_"):
         logger.info(f"DEMO_REAL: Initiating real-time reasoning for {analysis_id}")
-         try:
-             # Format: demo_real_depth_rigor_density_paper1,paper2...
-             parts = str(analysis_id).replace("demo_real_", "").split("_")
-             
-             # Default values
-             depth, rigor, density = "exhaustive", "standard", "detailed"
-             paper_ids_str = ""
+        try:
+            # Format: demo_real_depth_rigor_density_paper1,paper2...
+            parts = str(analysis_id).replace("demo_real_", "").split("_")
+            
+            # Default values
+            depth, rigor, density = "exhaustive", "standard", "detailed"
+            paper_ids_str = ""
 
-             if len(parts) >= 4:
-                 depth, rigor, density = parts[0], parts[1], parts[2]
-                 paper_ids_str = parts[3]
-             else:
-                 # Fallback for old style IDs
-                 paper_ids_str = parts[0]
+            if len(parts) >= 4:
+                depth, rigor, density = parts[0], parts[1], parts[2]
+                paper_ids_str = parts[3]
+            else:
+                # Fallback for old style IDs
+                paper_ids_str = parts[0]
 
-             paper_ids = paper_ids_str.split(",")
-             UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploaded_files")
+            paper_ids = paper_ids_str.split(",")
+            UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploaded_files")
             
             docs = []
             for pid in paper_ids:
@@ -131,7 +131,6 @@ async def get_specific_analysis(
                     file_to_process = files[0]
                 else:
                     # If not found locally, try to download if it looks like an ArXiv ID
-                    # ArXiv IDs are usually 10 characters like 2301.12345
                     logger.info(f"DEMO_REAL: {pid} not found locally. Attempting on-demand download...")
                     try:
                         arxiv_service = ArXivService(download_dir=UPLOAD_DIR)
