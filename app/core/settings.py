@@ -76,7 +76,8 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GOOGLE_REDIRECT_URI: str = "https://dama12-scientific-backend.hf.space/api/v1/auth/google/callback"
+    # If not set, the app will try to construct it from the request URL
+    GOOGLE_REDIRECT_URI: Optional[str] = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

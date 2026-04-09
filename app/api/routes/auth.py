@@ -11,6 +11,7 @@ from app.core.security import create_access_token
 from app.db.repositories.user_repo import UserRepository
 from datetime import timedelta
 import uuid
+from app.core.logging import logger
 
 router = APIRouter()
 
@@ -35,17 +36,24 @@ async def login_google(request: Request):
             detail="Google OAuth is not configured on the server."
         )
 
-    # Always use the explicit setting — never derive from request.url
-    # (Hugging Face proxies strip https → causes redirect_uri mismatch)
+    # If settings.GOOGLE_REDIRECT_URI is set, use it. 
+    # Otherwise, derive it from the current request URL (base) + callback path.
     redirect_uri = settings.GOOGLE_REDIRECT_URI
+    if not redirect_uri:
+        # Construct redirect URI from the request base URL
+        base_url = str(request.base_url).rstrip('/')
+        # Ensure we use https if we are behind a proxy that terminates SSL
+        if "hf.space" in base_url or request.headers.get("x-forwarded-proto") == "https":
+            base_url = base_url.replace("http://", "https://")
+        redirect_uri = f"{base_url}/api/v1/auth/google/callback"
     
     logger.info(f"Initiating Google OAuth login")
     logger.info(f"Using Google Redirect URI: {redirect_uri}")
     logger.info(f"Request Host Header: {request.headers.get('host')}")
-    logger.info(f"Request X-Forwarded-Proto: {request.headers.get('x-forwarded-proto')}")
-
-    # Tell Authlib the real scheme so the state URL is correct too
-    request.scope["scheme"] = "https"
+    
+    # Ensure Authlib uses https for the state param if we are in production
+    if "https" in redirect_uri:
+        request.scope["scheme"] = "https"
 
     try:
         return await oauth.google.authorize_redirect(request, redirect_uri)
@@ -57,19 +65,22 @@ async def login_google(request: Request):
         )
 
 
-from app.core.logging import logger
-
 @router.get("/google/callback")
 async def auth_google(request: Request, db: Session = Depends(get_db)):
     """Gère le retour de Google après authentification"""
     logger.info("Google callback route reached")
     
-    # Ensure scheme is https for callback as well (important for Authlib internal state validation)
-    request.scope["scheme"] = "https"
-    
+    # Determine the redirect_uri used during the initial request
+    redirect_uri = settings.GOOGLE_REDIRECT_URI
+    if not redirect_uri:
+        base_url = str(request.base_url).rstrip('/')
+        if "hf.space" in base_url or request.headers.get("x-forwarded-proto") == "https":
+            base_url = base_url.replace("http://", "https://")
+            request.scope["scheme"] = "https"
+        redirect_uri = f"{base_url}/api/v1/auth/google/callback"
+
     try:
         logger.info(f"Callback full URL: {request.url}")
-        logger.info(f"Callback Params: {dict(request.query_params)}")
         
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
@@ -82,7 +93,7 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
             )
             
         email = user_info.get('email')
-        name = user_info.get('name') or email.split('@')[0] if email else "User"
+        name = user_info.get('name') or (email.split('@')[0] if email else "User")
         
         logger.info(f"Google login successful for email: {email}")
         
@@ -93,19 +104,10 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
                 detail="Email not provided by Google."
             )
             
-        user_repo = UserRepository(db)
-        user = user_repo.get_by_email(email)
+        from app.services.user_service import UserService
+        service = UserService(db)
+        user = service.register_user_oauth(email=email, name=name)
         
-        if not user:
-            logger.info(f"Creating new user for email: {email}")
-            user = user_repo.create_user(
-                email=email,
-                name=name,
-                hashed_password=None, # OAuth users don't have a local password
-                institution=None,
-                role="user"
-            )
-            
         access_token = create_access_token(
             data={"sub": str(user.id)},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
