@@ -83,7 +83,16 @@ class Settings(BaseSettings):
     # If not set, the app will try to construct it from the request URL
     GOOGLE_REDIRECT_URI: Optional[str] = None
 
-    @field_validator("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", mode="before")
+    @field_validator(
+        "GOOGLE_CLIENT_ID", 
+        "GOOGLE_CLIENT_SECRET", 
+        "GOOGLE_REDIRECT_URI",
+        "OPENAI_API_KEY",
+        "K2_THINK_API_KEY",
+        "SECRET_KEY",
+        "DATABASE_URL",
+        mode="before"
+    )
     @classmethod
     def strip_whitespace(cls, v: str | None) -> str | None:
         if isinstance(v, str):
