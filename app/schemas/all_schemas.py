@@ -85,6 +85,9 @@ class PaperResponse(PaperBase):
 class AnalysisRequest(BaseModel):
     analysis_type: str = "comprehensive"
     paper_ids: List[str]
+    reasoning_depth: Optional[str] = "exhaustive"
+    ethics_rigor: Optional[str] = "standard"
+    info_density: Optional[str] = "detailed"
 
 
 class AnalysisResponse(BaseModel):

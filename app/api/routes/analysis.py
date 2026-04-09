@@ -36,7 +36,8 @@ async def start_project_analysis(
         if project_id.startswith("00000000"):
              # For demo/test mode with nil UUID, we use stateless mock processing
              paper_ids_str = ",".join(request.paper_ids)
-             mock_id = f"demo_real_{paper_ids_str}"
+             # Encode settings in the ID for stateless demo mode
+             mock_id = f"demo_real_{request.reasoning_depth}_{request.ethics_rigor}_{request.info_density}_{paper_ids_str}"
              return {
                  "message": "Demo mode: Analysis started (Real-time K2 Processing)",
                  "analysis_id": mock_id,
@@ -58,14 +59,14 @@ async def start_project_analysis(
         # Fallback to Mock Analysis if DB is down or other integrity issues
         if any(keyword in str(e).lower() for keyword in ["operationalerror", "connection", "integrityerror", "foreign key"]):
             # Encapsulate paper IDs in the analysis_id to pass them to the GET request in stateless demo mode
-            paper_ids_str = ",".join(request.paper_ids)
-            mock_id = f"demo_real_{paper_ids_str}"
-            return {
-                "message": "Demo mode fallback: Analysis started (Real-time K2 Processing)",
-                "analysis_id": mock_id,
-                "status": "pending",
-                "mode": "demo"
-            }
+             paper_ids_str = ",".join(request.paper_ids)
+             mock_id = f"demo_real_{request.reasoning_depth}_{request.ethics_rigor}_{request.info_density}_{paper_ids_str}"
+             return {
+                 "message": "Demo mode fallback: Analysis started (Real-time K2 Processing)",
+                 "analysis_id": mock_id,
+                 "status": "pending",
+                 "mode": "demo"
+             }
         raise e
 
 
@@ -100,10 +101,23 @@ async def get_specific_analysis(
     # On exécute ceci AVANT toute recherche en base de données pour éviter les 404
     if str(analysis_id).startswith("demo_real_"):
         logger.info(f"DEMO_REAL: Initiating real-time reasoning for {analysis_id}")
-        try:
-            # Extract Paper IDs from analysis_id
-            paper_ids = str(analysis_id).replace("demo_real_", "").split(",")
-            UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploaded_files")
+         try:
+             # Format: demo_real_depth_rigor_density_paper1,paper2...
+             parts = str(analysis_id).replace("demo_real_", "").split("_")
+             
+             # Default values
+             depth, rigor, density = "exhaustive", "standard", "detailed"
+             paper_ids_str = ""
+
+             if len(parts) >= 4:
+                 depth, rigor, density = parts[0], parts[1], parts[2]
+                 paper_ids_str = parts[3]
+             else:
+                 # Fallback for old style IDs
+                 paper_ids_str = parts[0]
+
+             paper_ids = paper_ids_str.split(",")
+             UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploaded_files")
             
             docs = []
             for pid in paper_ids:
@@ -114,48 +128,65 @@ async def get_specific_analysis(
                 logger.info(f"DEMO_REAL: Searching for {pid} -> Found: {len(files)}")
                 
                 if files:
+                    file_to_process = files[0]
+                else:
+                    # If not found locally, try to download if it looks like an ArXiv ID
+                    # ArXiv IDs are usually 10 characters like 2301.12345
+                    logger.info(f"DEMO_REAL: {pid} not found locally. Attempting on-demand download...")
                     try:
-                        safe_filename = os.path.basename(files[0]).encode('ascii', 'replace').decode('ascii')
-                        text = PDFParser.extract_text(files[0])
-                        metadata = PDFParser.extract_metadata(files[0])
-                        logger.info(f"DEMO_REAL: Extracted {len(text)} chars from {safe_filename}")
+                        arxiv_service = ArXivService(download_dir=UPLOAD_DIR)
+                        file_to_process = arxiv_service.download_paper(pid)
+                    except Exception as dl_err:
+                        logger.error(f"DEMO_REAL: Failed to download {pid}: {dl_err}")
+                        continue
+
+                try:
+                    safe_filename = os.path.basename(file_to_process).encode('ascii', 'replace').decode('ascii')
+                    text = PDFParser.extract_text(file_to_process)
+                    metadata = PDFParser.extract_metadata(file_to_process)
+                    logger.info(f"DEMO_REAL: Extracted {len(text)} chars from {safe_filename}")
+                    
+                    safe_title = metadata.get("title")
+                    if not safe_title:
+                        safe_title = safe_filename
                         
-                        safe_title = metadata.get("title")
-                        if not safe_title:
-                            safe_title = safe_filename
+                    # Parse date for a year
+                    creation_date = metadata.get("creation_date", "")
+                    year = "n.d."
+                    if creation_date and len(creation_date) >= 6 and creation_date.startswith("D:"):
+                        year = creation_date[2:6]
+                    elif len(creation_date) >= 4:
+                        import re
+                        match = re.search(r'(\d{4})', creation_date)
+                        if match:
+                            year = match.group(1)
                             
-                        # Parse date for a year
-                        creation_date = metadata.get("creation_date", "")
-                        year = "n.d."
-                        if creation_date and len(creation_date) >= 6 and creation_date.startswith("D:"):
-                            year = creation_date[2:6]
-                        elif len(creation_date) >= 4:
-                            import re
-                            match = re.search(r'(\d{4})', creation_date)
-                            if match:
-                                year = match.group(1)
-                                
-                        docs.append(ScientificDocument(
-                            id=pid,
-                            title=safe_title,
-                            authors=[metadata.get("author")] if metadata.get("author") else ["Unknown"],
-                            abstract="Extracted from PDF",
-                            content=text,
-                            document_type=DocumentType.PDF,
-                            publication_date=year
-                        ))
-                    except Exception as doc_err:
-                        safe_err = str(doc_err).encode('ascii', 'replace').decode('ascii')
-                        logger.error(f"DEMO_REAL: Failed to process document {pid}: {safe_err}")
+                    docs.append(ScientificDocument(
+                        id=pid,
+                        title=safe_title,
+                        authors=[metadata.get("author")] if metadata.get("author") else ["Unknown"],
+                        abstract="Extracted from PDF",
+                        content=text,
+                        document_type=DocumentType.PDF,
+                        publication_date=year
+                    ))
+                except Exception as doc_err:
+                    safe_err = str(doc_err).encode('ascii', 'replace').decode('ascii')
+                    logger.error(f"DEMO_REAL: Failed to process document {pid}: {safe_err}")
             
             if not docs:
                 logger.warning("DEMO_REAL: No documents could be extracted. Falling back to mock data.")
                 return MockIntelligenceService.get_mock_analysis_result()
             
             # 3. Call K2 Think Engine
-            logger.info(f"DEMO_REAL: Initializing K2ThinkEngine with {len(docs)} docs")
+            logger.info(f"DEMO_REAL: Initializing K2ThinkEngine with {len(docs)} docs, Depth: {depth}, Rigor: {rigor}")
             engine = K2ThinkEngine()
-            k2_request = K2AnalysisRequest(documents=docs)
+            k2_request = K2AnalysisRequest(
+                documents=docs,
+                reasoning_depth=depth,
+                ethics_rigor=rigor,
+                info_density=density
+            )
             result = await engine.process_analysis_request(k2_request)
             
             logger.info(f"DEMO_REAL: K2 success! Request ID: {result.request_id}")

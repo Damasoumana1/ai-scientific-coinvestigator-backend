@@ -118,11 +118,12 @@ class ExperimentalProtocol(BaseModel):
 class AnalysisRequest(BaseModel):
     """Requête d'analyse scientifique"""
     documents: List[ScientificDocument]
-    analysis_type: str = "comprehensive"  # "comparative", "gap-detection", "protocol-design"
-    focus_area: Optional[str] = None
-    constraints: Optional[Dict[str, Any]] = None
     user_notes: Optional[str] = None
-
+    
+    # Scientific Settings from UI
+    reasoning_depth: str = "exhaustive"  # "executive", "exhaustive"
+    ethics_rigor: str = "clinical"       # "standard", "clinical", "strict"
+    info_density: str = "comfortable"     # "compact", "comfortable"
 
 class AnalysisResult(BaseModel):
     """Résultat d'analyse complet"""

@@ -81,9 +81,31 @@ class K2ThinkEngine:
                 f"Sending {len(request.documents)} documents to K2 Think V2 for multi-step reasoning"
             )
             
-            system_prompt = """You are the K2 Think V2 Scientific Co-Investigator. 
+            # Dynamic prompt adjustments based on user settings
+            depth_instruction = ""
+            if request.reasoning_depth == "exhaustive":
+                depth_instruction = "\n- EXHAUSTIVE MODE: Perform a deep methodological audit. Analyze every statistical nuance and minor contradiction."
+            else:
+                depth_instruction = "\n- EXECUTIVE MODE: Focus on high-level strategic outcomes and clear, actionable summaries."
+
+            ethics_instruction = ""
+            if request.ethics_rigor == "clinical":
+                ethics_instruction = "\n- CLINICAL RIGOR: Apply maximum clinical safety standards. Audit protocols for patient consent and bio-data anonymization."
+            elif request.ethics_rigor == "strict":
+                ethics_instruction = "\n- STRICT RIGOR: Enforce extreme academic integrity and data privacy. Flag any potential citation or data handling bias."
+
+                ethics_instruction = "STRICT PRIVACY AUDIT: Identify any potential data anonymization failures or strict regulatory compliance issues."
+
+            density_instruction = "Use compact, dense bullet points." if request.info_density == "compact" else "Use comfortable, explanatory paragraphs where needed."
+
+            system_prompt = f"""You are the K2 Think V2 Scientific Co-Investigator. 
 Your core capability and primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
 Do NOT just summarize individual papers. You MUST cross-reference, compare, and contrast the provided documents to uncover deeper strategic insights.
+
+REASONING GUIDELINES:
+- DEPTH: {depth_instruction}
+- ETHICS: {ethics_instruction}
+- DENSITY: {density_instruction}
 
 MANDATORY CITATION RULE: Every claim, contradiction, or gap you identify MUST be attributed to its source using the exact (Author, Year) format as provided in the DOCUMENT header CITATION_KEY.
 
@@ -97,24 +119,24 @@ Analyze the provided documents to formulate a comprehensive research strategy:
 6. REASONING TRACE: Show your chain of thought (e.g., "Compared metric X from Doc 1 with Doc 2 -> Found contradiction -> Designed Step 3 to resolve").
 
 OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this structure:
-{
+{{
   "confidence_score": 0.95,
   "reasoning_summary": "Summary of steps taken...",
-  "contradictions": [{"topic": "...", "conflict": "...", "resolution_path": "...", "citations": ["(Author, Year)"]}],
-  "research_gaps": [{"description": "...", "importance_score": 0.9, "related_variables": ["...", "..."], "suggested_investigation": "...", "citations": ["(Author, Year)"]}],
-  "counter_hypotheses": [{"hypothesis": "...", "rationale": "...", "potential_bias": "...", "validation_experiment": "...", "citations": ["(Author, Year)"]}],
-  "protocol": {
+  "contradictions": [{{ "topic": "...", "conflict": "...", "resolution_path": "...", "citations": ["(Author, Year)"] }}],
+  "research_gaps": [{{ "description": "...", "importance_score": 0.9, "related_variables": ["...", "..."], "suggested_investigation": "...", "citations": ["(Author, Year)"] }}],
+  "counter_hypotheses": [{{ "hypothesis": "...", "rationale": "...", "potential_bias": "...", "validation_experiment": "...", "citations": ["(Author, Year)"] }}],
+  "protocol": {{
     "title": "...",
     "hypothesis": "...",
     "objective": "...",
     "estimated_duration_days": 30,
     "estimated_budget_usd": 5000,
     "resource_optimization": "...",
-    "steps": [{"description": "...", "duration_hours": 2, "materials": ["..."], "risk_level": "low"}],
-    "variables": [{"name": "...", "type": "independent|dependent|control", "measurement_unit": "..."}]
-  },
+    "steps": [{{ "description": "...", "duration_hours": 2, "materials": ["..."], "risk_level": "low" }}],
+    "variables": [{{ "name": "...", "type": "independent|dependent|control", "measurement_unit": "..." }}]
+  }},
   "recommendations": ["Recommendation 1"]
-}"""
+}}"""
 
             messages = [
                 {"role": "system", "content": system_prompt},
