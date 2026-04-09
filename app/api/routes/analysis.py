@@ -16,6 +16,7 @@ from app.rag.pdf_parser import PDFParser
 from app.services.k2_think_engine import K2ThinkEngine
 from app.models.schemas import ScientificDocument, AnalysisRequest as K2AnalysisRequest, DocumentType, ChatRequest, ChatResponse
 from app.services.export_service import ExportService
+from app.services.arxiv_service import ArXivService
 from fastapi.responses import Response, FileResponse
 
 router = APIRouter()
