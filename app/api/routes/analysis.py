@@ -309,3 +309,59 @@ async def export_analysis(
     
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
+
+
+@router.get("/{analysis_id}/export/{format}")
+async def export_analysis_get(
+    analysis_id: str,
+    format: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Exporte l'analyse (version GET pour les analyses persistantes stockées en base)
+    """
+    # 1. Vérification si c'est une démo
+    if analysis_id.startswith("demo_"):
+         raise HTTPException(
+             status_code=status.HTTP_400_BAD_REQUEST, 
+             detail="GET export only supported for persistent analyses. Use POST for demo sessions."
+         )
+
+    # 2. Récupération de l'analyse en base
+    try:
+        service = AnalysisService(db)
+        uuid_obj = UUID(analysis_id)
+        analysis_run = service.analysis_repo.get_by_id(uuid_obj)
+    except:
+        analysis_run = None
+    
+    if not analysis_run:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis not found")
+
+    # 3. Reconstruction du contexte pour l'export
+    gaps = []
+    for g in analysis_run.gaps:
+        gaps.append({
+            "gap_description": g.description,
+            "importance_score": g.importance_score,
+            "suggested_direction": g.suggested_direction
+        })
+    
+    # Contexte minimal requis pour les graphiques
+    context = {
+        "request_id": str(analysis_run.id),
+        "research_gaps": gaps,
+        "confidence_overall": 0.85
+    }
+    
+    # 4. Génération de l'export
+    export_service = ExportService()
+    if format == "chart":
+        output_path = f"logs/chart_{analysis_id}.png"
+        chart_path = export_service.generate_strategy_charts(context, output_path)
+        if not chart_path:
+            raise HTTPException(status_code=400, detail="Cannot generate chart - no gaps found")
+        return FileResponse(chart_path, media_type="image/png")
+    
+    raise HTTPException(status_code=400, detail=f"Unsupported format for GET: {format}")

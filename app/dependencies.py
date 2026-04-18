@@ -22,12 +22,25 @@ security = HTTPBearer()
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    token: str = None,
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
     db: Session = Depends(get_db)
 ):
-    """Récupère l'utilisateur courant depuis le token JWT"""
-    token = credentials.credentials
-    payload = decode_access_token(token)
+    """Récupère l'utilisateur courant depuis le token JWT (Supporte Header Bearer et Query Param)"""
+    token_str = None
+    
+    if credentials:
+        token_str = credentials.credentials
+    elif token:
+        token_str = token
+        
+    if not token_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+        
+    payload = decode_access_token(token_str)
     
     if payload is None:
         raise HTTPException(
