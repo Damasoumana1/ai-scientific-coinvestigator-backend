@@ -31,6 +31,35 @@ from app.db.models.activity_log import ActivityLog
 # Lifecycle events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Auto-migration: Add missing credit columns to existing users table
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Check if 'credits' column exists, add it if not
+            try:
+                conn.execute(text("SELECT credits FROM users LIMIT 1"))
+                logger.info("Column 'credits' already exists in users table.")
+            except Exception:
+                conn.execute(text("ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 2000"))
+                conn.commit()
+                logger.info("Added 'credits' column to users table with default 2000.")
+            
+            # Check if 'last_refill_date' column exists, add it if not
+            try:
+                conn.execute(text("SELECT last_refill_date FROM users LIMIT 1"))
+                logger.info("Column 'last_refill_date' already exists in users table.")
+            except Exception:
+                conn.execute(text("ALTER TABLE users ADD COLUMN last_refill_date DATE"))
+                conn.commit()
+                logger.info("Added 'last_refill_date' column to users table.")
+                
+            # Backfill NULL credits to 2000 for existing users
+            conn.execute(text("UPDATE users SET credits = 2000 WHERE credits IS NULL"))
+            conn.commit()
+            logger.info("Backfilled NULL credits to 2000 for existing users.")
+    except Exception as e:
+        logger.warning(f"Auto-migration warning (non-fatal): {str(e)}")
+
     # Create tables on startup (dev convenience — use Alembic in production)
     try:
         Base.metadata.create_all(bind=engine)
