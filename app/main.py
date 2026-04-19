@@ -35,27 +35,27 @@ async def lifespan(app: FastAPI):
     try:
         from sqlalchemy import text
         with engine.connect() as conn:
-            # Check if 'credits' column exists, add it if not
-            try:
-                conn.execute(text("SELECT credits FROM users LIMIT 1"))
-                logger.info("Column 'credits' already exists in users table.")
-            except Exception:
-                conn.execute(text("ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 2000"))
-                conn.commit()
+            # Check if 'credits' column exists
+            res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='credits'")).fetchone()
+            if not res:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    ddl_conn.execute(text("ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 2000"))
                 logger.info("Added 'credits' column to users table with default 2000.")
+            else:
+                logger.info("Column 'credits' already exists in users table.")
             
-            # Check if 'last_refill_date' column exists, add it if not
-            try:
-                conn.execute(text("SELECT last_refill_date FROM users LIMIT 1"))
-                logger.info("Column 'last_refill_date' already exists in users table.")
-            except Exception:
-                conn.execute(text("ALTER TABLE users ADD COLUMN last_refill_date DATE"))
-                conn.commit()
+            # Check if 'last_refill_date' column exists
+            res_date = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='last_refill_date'")).fetchone()
+            if not res_date:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    ddl_conn.execute(text("ALTER TABLE users ADD COLUMN last_refill_date DATE"))
                 logger.info("Added 'last_refill_date' column to users table.")
+            else:
+                logger.info("Column 'last_refill_date' already exists in users table.")
                 
-            # Backfill NULL credits to 2000 for existing users
-            conn.execute(text("UPDATE users SET credits = 2000 WHERE credits IS NULL"))
-            conn.commit()
+            # Backfill NULL credits to 2000 for existing users safely
+            with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                ddl_conn.execute(text("UPDATE users SET credits = 2000 WHERE credits IS NULL"))
             logger.info("Backfilled NULL credits to 2000 for existing users.")
     except Exception as e:
         logger.warning(f"Auto-migration warning (non-fatal): {str(e)}")
