@@ -131,14 +131,50 @@ async def get_specific_analysis(
                 if files:
                     file_to_process = files[0]
                 else:
-                    # If not found locally, try to download if it looks like an ArXiv ID
-                    logger.info(f"DEMO_REAL: {pid} not found locally. Attempting on-demand download...")
-                    try:
-                        arxiv_service = ArXivService(download_dir=UPLOAD_DIR)
-                        file_to_process = arxiv_service.download_paper(pid)
-                    except Exception as dl_err:
-                        logger.error(f"DEMO_REAL: Failed to download {pid}: {dl_err}")
-                        continue
+                    # If not found locally, try to download based on source
+                    if pid.startswith("doaj_"):
+                        logger.info(f"DEMO_REAL: {pid} is DOAJ. Attempting fetch and download...")
+                        try:
+                            from app.services.doaj_service import DOAJService
+                            doaj_service = DOAJService(download_dir=UPLOAD_DIR)
+                            # DOAJ ID search
+                            clean_id = pid.replace("doaj_", "")
+                            # We use the search API to find the PDF URL for this ID
+                            search_results = doaj_service.fetch_papers(clean_id, max_results=1)
+                            if search_results and search_results[0].get("url"):
+                                file_to_process = doaj_service.download_paper(search_results[0]["url"], pid)
+                            else:
+                                logger.error(f"DEMO_REAL: No PDF URL found for DOAJ {pid}")
+                                continue
+                        except Exception as doaj_err:
+                            logger.error(f"DEMO_REAL: DOAJ download failed for {pid}: {doaj_err}")
+                            continue
+                    elif pid.startswith("pubmed_"):
+                        logger.info(f"DEMO_REAL: {pid} is PubMed. Attempting fetch and download...")
+                        try:
+                            from app.services.pubmed_service import PubMedService
+                            pubmed_service = PubMedService(download_dir=UPLOAD_DIR)
+                            # PubMed ID search
+                            clean_id = pid.replace("pubmed_", "")
+                            # Search by ID to get PMC PDF URL
+                            search_results = pubmed_service.fetch_papers(clean_id, max_results=1)
+                            if search_results and search_results[0].get("url") and search_results[0].get("has_pdf"):
+                                file_to_process = pubmed_service.download_paper(search_results[0]["url"], pid)
+                            else:
+                                logger.error(f"DEMO_REAL: No PDF URL found for PubMed/PMC {pid}")
+                                continue
+                        except Exception as pubmed_err:
+                            logger.error(f"DEMO_REAL: PubMed download failed for {pid}: {pubmed_err}")
+                            continue
+                    else:
+                        # ArXiv ID (Standard)
+                        logger.info(f"DEMO_REAL: {pid} not found locally. Attempting on-demand download...")
+                        try:
+                            arxiv_service = ArXivService(download_dir=UPLOAD_DIR)
+                            file_to_process = arxiv_service.download_paper(pid)
+                        except Exception as dl_err:
+                            logger.error(f"DEMO_REAL: Failed to download {pid}: {dl_err}")
+                            continue
 
                 try:
                     safe_filename = os.path.basename(file_to_process).encode('ascii', 'replace').decode('ascii')

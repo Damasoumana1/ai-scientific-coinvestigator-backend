@@ -32,6 +32,7 @@ class ArXivService:
                     "authors": [author.name for author in result.authors],
                     "summary": result.summary,
                     "url": result.pdf_url,
+                    "categories": result.categories,
                     "publication_date": result.published.strftime("%Y-%m-%d") if result.published else None
                 })
             except Exception as e:
