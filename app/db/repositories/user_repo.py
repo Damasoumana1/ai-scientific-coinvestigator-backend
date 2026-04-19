@@ -50,3 +50,26 @@ class UserRepository(BaseRepository[User, UserCreate, UserCreate]):
         if not verify_password(password, user.hashed_password):
             return None
         return user
+
+    def check_and_refill_credits(self, user: User) -> User:
+        """Vérifie si le daily refill est nécessaire et l'exécute"""
+        from datetime import datetime
+        today = datetime.utcnow().date()
+        
+        if user.last_refill_date is None or user.last_refill_date < today:
+            user.credits = 2000
+            user.last_refill_date = today
+            self.db.add(user)
+            self.db.commit()
+            self.db.refresh(user)
+        return user
+
+    def deduct_credits(self, user: User, amount: int) -> bool:
+        """Détruit des crédits si le solde est suffisant"""
+        if user.credits >= amount:
+            user.credits -= amount
+            self.db.add(user)
+            self.db.commit()
+            self.db.refresh(user)
+            return True
+        return False

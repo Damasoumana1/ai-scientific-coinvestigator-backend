@@ -65,12 +65,16 @@ async def get_current_user(
                 self.institution = "Demo"
                 self.role = "Researcher"
                 self.is_admin = False
+                self.credits = 2000
         
         return MockUser(user_id, "demo@example.com", "Demo User")
 
     user_repo = UserRepository(db)
     try:
         user = user_repo.get_by_id(user_id)
+        if user:
+            # Automatiquement vérifier le refill à chaque accès
+            user = user_repo.check_and_refill_credits(user)
     except Exception as e:
         # If DB is down, we can't verify the user unless it's a demo token
         from app.core.logging import logger

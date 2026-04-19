@@ -1,7 +1,7 @@
 """
 Database Models for User Management
 """
-from sqlalchemy import Column, DateTime, Text, UUID
+from sqlalchemy import Column, DateTime, Text, UUID, Integer, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -19,6 +19,8 @@ class User(Base):
 
     institution = Column(Text)
     role = Column(Text)
+    credits = Column(Integer, default=2000)
+    last_refill_date = Column(Date, default=datetime.utcnow().date())
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

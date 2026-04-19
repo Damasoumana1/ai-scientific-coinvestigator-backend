@@ -167,3 +167,4 @@ class ChatResponse(BaseModel):
     answer: str
     reasoning_log: Optional[str] = None
     suggested_actions: Optional[List[str]] = []
+    remaining_credits: Optional[int] = None

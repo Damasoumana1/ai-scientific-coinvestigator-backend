@@ -30,9 +30,24 @@ async def start_project_analysis(
     db: Session = Depends(get_db)
 ):
     """Démarre une nouvelle analyse"""
+    from app.db.repositories.user_repo import UserRepository
+    user_repo = UserRepository(db)
+    
+    # 1. Vérification des crédits (50 pour une analyse profonde)
+    if not current_user.id.hex.startswith("0000"): # Bypass for pure mock demo
+        if current_user.credits < 50:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient K2 Credits. Required: 50"
+            )
+        
     try:
         service = AnalysisService(db)
         
+        # Deduct credits
+        if not current_user.id.hex.startswith("0000"):
+            user_repo.deduct_credits(current_user, 50)
+            
         # Create analysis run
         if project_id.startswith("00000000"):
              # For demo/test mode with nil UUID, we use stateless mock processing
@@ -43,7 +58,8 @@ async def start_project_analysis(
                  "message": "Demo mode: Analysis started (Real-time K2 Processing)",
                  "analysis_id": mock_id,
                  "status": "pending",
-                 "mode": "demo"
+                 "mode": "demo",
+                 "remaining_credits": current_user.credits
              }
 
         analysis = service.create_analysis_run(
@@ -54,7 +70,8 @@ async def start_project_analysis(
         return {
             "message": "Analysis started",
             "analysis_id": analysis.id,
-            "status": "pending"
+            "status": "pending",
+            "remaining_credits": current_user.credits
         }
     except Exception as e:
         # Fallback to Mock Analysis if DB is down or other integrity issues
@@ -276,11 +293,25 @@ async def get_specific_analysis(
 async def scientific_chat(
     analysis_id: str,
     request: ChatRequest,
+    current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Discussion interactive avec K2 Think sur une analyse spécifique
     """
+    from app.db.repositories.user_repo import UserRepository
+    user_repo = UserRepository(db)
+    
+    # 1. Vérification des crédits (10 pour un chat)
+    if not current_user.id.hex.startswith("0000"):
+        if current_user.credits < 10:
+             raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient K2 Credits. Required: 10"
+            )
+        # Deduct
+        user_repo.deduct_credits(current_user, 10)
+
     from app.core.logging import logger
     logger.info(f"Chat request for analysis {analysis_id}: {request.message[:50]}...")
     try:
@@ -294,6 +325,12 @@ async def scientific_chat(
             analysis_context=context,
             history=request.history or []
         )
+        # Update credits in result
+        if isinstance(result, ChatResponse):
+             result.remaining_credits = current_user.credits
+        elif isinstance(result, dict):
+             result["remaining_credits"] = current_user.credits
+             
         logger.info(f"Chat response generated successfully")
         return result
     except Exception as e:

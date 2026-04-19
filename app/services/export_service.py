@@ -90,10 +90,19 @@ REQUIREMENTS:
         # Chart 1: Importance Score of Research Gaps
         descriptions = [g.get("gap_description", "")[:30] + "..." for g in gaps]
         scores = [g.get("importance_score", 0.5) * 100 for g in gaps]
+        
+        # Dynamic colors based on priority
+        # High (>80) = Red, Med-High (60-80) = Orange, Med (40-60) = Blue, Low (<40) = Emerald
+        colors = []
+        for s in scores:
+            if s >= 80: colors.append('#ef4444')   # Red
+            elif s >= 60: colors.append('#f97316') # Orange
+            elif s >= 40: colors.append('#3b82f6') # Blue
+            else: colors.append('#10b981')         # Emerald
 
         plt.figure(figsize=(10, 6))
         plt.style.use('dark_background')
-        bars = plt.barh(descriptions, scores, color='#3b82f6')
+        bars = plt.barh(descriptions, scores, color=colors)
         plt.xlabel('Importance Score (%)')
         plt.title('Identified Research Gaps - Priority Map')
         plt.grid(axis='x', linestyle='--', alpha=0.3)
