@@ -3,7 +3,7 @@ Pydantic Schemas for API Requests/Responses
 """
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 import uuid
 
 
@@ -23,7 +23,7 @@ class UserCreate(UserBase):
 class UserResponse(UserBase):
     id: uuid.UUID
     credits: int
-    last_refill_date: Optional[datetime.date] = None
+    last_refill_date: Optional[date] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
