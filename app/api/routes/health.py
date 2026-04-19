@@ -69,3 +69,45 @@ async def readiness_check():
 async def liveness_check():
     """Kubernetes liveness probe"""
     return {"status": "alive"}
+
+@router.get("/migrate-credits")
+async def manual_migration():
+    """Manual migration endpoint to debug Supabase and force schema updates"""
+    from sqlalchemy import text
+    results = []
+    try:
+        # Create a new connection with explicit isolation level for DDL
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            # 1. Add credits column
+            try:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 2000;"))
+                results.append({"step": "add_credits", "status": "success"})
+            except Exception as e:
+                results.append({"step": "add_credits", "error": str(e)})
+
+            # 2. Add last_refill_date column
+            try:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_refill_date DATE;"))
+                results.append({"step": "add_date", "status": "success"})
+            except Exception as e:
+                results.append({"step": "add_date", "error": str(e)})
+
+            # 3. Backfill missing values
+            try:
+                conn.execute(text("UPDATE users SET credits = 2000 WHERE credits IS NULL;"))
+                results.append({"step": "backfill", "status": "success"})
+            except Exception as e:
+                results.append({"step": "backfill", "error": str(e)})
+                
+            # 4. Verification
+            try:
+                res = conn.execute(text("SELECT email, credits, last_refill_date FROM users LIMIT 5;"))
+                rows = [dict(r._mapping) for r in res]
+                results.append({"step": "verify", "users_sample": rows})
+            except Exception as e:
+                results.append({"step": "verify", "error": str(e)})
+
+    except Exception as e:
+        results.append({"step": "connection", "error": str(e)})
+
+    return {"status": "migration_attempted", "details": results}
