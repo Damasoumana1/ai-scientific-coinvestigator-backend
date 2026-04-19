@@ -109,6 +109,10 @@ async def auth_google(request: Request, db: Session = Depends(get_db)):
         service = UserService(db)
         user = service.register_user_oauth(email=email, name=name)
         
+        # Trigger daily credit refill check at Google login
+        user_repo = UserRepository(db)
+        user = user_repo.check_and_refill_credits(user)
+        
         access_token = create_access_token(
             data={"sub": str(user.id)},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

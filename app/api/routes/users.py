@@ -85,13 +85,27 @@ async def login(user_login: UserLogin, db: Session = Depends(get_db)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password."
             )
+        
+        # Trigger daily credit refill check at login
+        user_repo = UserRepository(db)
+        user = user_repo.check_and_refill_credits(user)
             
         token = create_access_token(
             data={"sub": str(user.id)},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         logger.info(f"Successful login for: {user_login.email}")
-        return {"access_token": token, "token_type": "bearer", "user": {"id": str(user.id), "name": user.name, "email": user.email}}
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "credits": user.credits,
+                "last_refill_date": str(user.last_refill_date)
+            }
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -126,12 +140,26 @@ async def register_and_login(user: UserCreate, db: Session = Depends(get_db)):
             institution=user.institution,
             role=user.role
         )
+        # Trigger daily credit refill check on first registration
+        user_repo = UserRepository(db)
+        new_user = user_repo.check_and_refill_credits(new_user)
+
         token = create_access_token(
             data={"sub": str(new_user.id)},
             expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         logger.info(f"Successful register-and-login for: {user.email}")
-        return {"access_token": token, "token_type": "bearer", "user": {"id": str(new_user.id), "name": new_user.name, "email": new_user.email}}
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": str(new_user.id),
+                "name": new_user.name,
+                "email": new_user.email,
+                "credits": new_user.credits,
+                "last_refill_date": str(new_user.last_refill_date)
+            }
+        }
     except Exception as e:
         logger.error(f"Registration error for {user.email}: {str(e)}")
         
@@ -169,6 +197,7 @@ async def register_and_login(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user = Depends(get_current_user)):
-    """Récupère les infos de l'utilisateur courant"""
-    return current_user
+async def get_current_user_info(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Récupère les infos de l'utilisateur courant et déclenche le refill journalier si nécessaire"""
+    user_repo = UserRepository(db)
+    return user_repo.check_and_refill_credits(current_user)
