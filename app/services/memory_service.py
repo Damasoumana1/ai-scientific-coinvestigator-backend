@@ -15,7 +15,7 @@ class MemoryService:
     Stocke les découvertes, préférences et conclusions passées.
     """
     
-    COLLECTION_NAME = "user_semantic_memory"
+    COLLECTION_NAME = "user_semantic_memory_v2"
     
     def __init__(self):
         self.client = QdrantClient(
@@ -44,20 +44,10 @@ class MemoryService:
                     }
                 )
             else:
-                # Vérifier si le vecteur nommé existe, sinon on recrée (pour corriger le format hackathon)
-                collection_info = self.client.get_collection(self.COLLECTION_NAME)
-                if "fast-bge-small-en-v1.5" not in collection_info.config.params.vectors:
-                    logger.warning(f"Collection {self.COLLECTION_NAME} has wrong vector format. Recreating...")
-                    self.client.delete_collection(self.COLLECTION_NAME)
-                    self.client.create_collection(
-                        collection_name=self.COLLECTION_NAME,
-                        vectors_config={
-                            "fast-bge-small-en-v1.5": models.VectorParams(
-                                size=384,
-                                distance=models.Distance.COSINE
-                            )
-                        }
-                    )
+                # Si elle existe déjà mais avec le mauvais schéma (vecteur anonyme), 
+                # Qdrant renverra l'erreur qu'on a vue. 
+                # On pourrait la supprimer/recréer ici si on veut être radical.
+                pass
             
             # Vérifier/Créer l'index user_id séparément pour être sûr
             try:
