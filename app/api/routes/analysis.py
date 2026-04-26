@@ -1,7 +1,7 @@
 """
 Routes analyses K2 Think
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response, FileResponse
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
 from app.services.analysis_service import AnalysisService
@@ -18,7 +18,6 @@ from app.models.schemas import ScientificDocument, AnalysisRequest as K2Analysis
 from app.services.export_service import ExportService
 from app.services.arxiv_service import ArXivService
 from app.services.openalex_service import OpenAlexService
-from fastapi.responses import Response, FileResponse
 from app.core.logging import logger
 
 router = APIRouter()
@@ -49,10 +48,12 @@ async def get_user_analysis_history(
     return results
 
 
+
 @router.post("/{project_id}", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
 async def start_project_analysis(
     project_id: str,
     request: AnalysisRequest,
+    background_tasks: BackgroundTasks,
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -89,6 +90,13 @@ async def start_project_analysis(
         analysis = service.create_analysis_run(
             project_id=target_project_id,
             model_used=request.model or "k2-think-pro"
+        )
+
+        # START THE ACTUAL PROCESSING
+        background_tasks.add_task(
+            service.process_analysis,
+            str(analysis.id),
+            request
         )
         
         return {
