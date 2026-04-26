@@ -43,210 +43,130 @@ class K2ThinkEngine:
         request: AnalysisRequest
     ) -> AnalysisResult:
         """
-        Processus complet d'analyse utilisant UNIQUEMENT K2 Think API (Chat Completion)
+        Processus complet d'analyse utilisant LangChain + K2 Think API
         """
-        import json
+        from langchain_openai import ChatOpenAI
+        from langchain.prompts import ChatPromptTemplate
+        from langchain_core.output_parsers import JsonOutputParser
+        
         request_id = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.reasoning_trace = []
         self.audit_logs = []
         
         try:
-            logger.info(f"K2 Think Analysis Start: {request_id}")
-            logger.info(f"   Documents: {len(request.documents)}")
+            logger.info(f"K2 Think Analysis (LangChain Orchestrated) Start: {request_id}")
             
-            # Préparer le contexte documentaire avec troncature pour éviter les erreurs 500 (limite de tokens API)
-            max_chars_per_doc = 40000 # environ 10k tokens par doc
+            # 1. Configuration du LLM K2 via l'interface OpenAI de LangChain
+            llm = ChatOpenAI(
+                model="MBZUAI-IFM/K2-Think-v2",
+                openai_api_key=settings.K2_THINK_API_KEY,
+                openai_api_base=settings.K2_THINK_API_URL,
+                temperature=0.7,
+                max_tokens=4096,
+                max_retries=3 
+            )
+
+            # 2. Préparation du contexte documentaire
             context_parts = []
             for doc in request.documents:
-                snippet = doc.content[:max_chars_per_doc]
-                if len(doc.content) > max_chars_per_doc:
-                    snippet += "\n...[CONTENT TRUNCATED FOR API LIMITS]..."
-                
-                # Extract first author and year for citation baseline
+                snippet = doc.content[:30000]
                 first_author = doc.authors[0].split()[-1] if doc.authors else "Unknown"
-                
                 year = "n.d."
-                if doc.publication_date:
-                    import re
-                    year_match = re.search(r'(\d{4})', doc.publication_date)
-                    if year_match:
-                        year = year_match.group(1)
-                
                 citation_key = f"({first_author}, {year})"
-                
-                context_parts.append(f"--- DOCUMENT: {doc.title} | CITATION_KEY: {citation_key} ---\n{snippet}")
+                context_parts.append(f"--- DOCUMENT: {doc.title} | KEY: {citation_key} ---\n{snippet}")
             context = "\n\n".join(context_parts)
-            
-            # ============ K2 THINK API - ANALYSE COMPLÈTE ============
-            self._log_reasoning(
-                "K2_ANALYSIS",
-                "K2 Think Deep Reasoning",
-                f"Sending {len(request.documents)} documents to K2 Think V2 for multi-step reasoning"
-            )
-            
-            # Dynamic prompt adjustments based on user settings
-            depth_instruction = ""
-            if request.reasoning_depth == "exhaustive":
-                depth_instruction = "\n- EXHAUSTIVE MODE: Perform a deep methodological audit. Analyze every statistical nuance and minor contradiction."
-            else:
-                depth_instruction = "\n- EXECUTIVE MODE: Focus on high-level strategic outcomes and clear, actionable summaries."
 
-            ethics_instruction = ""
-            if request.ethics_rigor == "clinical":
-                ethics_instruction = "\n- CLINICAL RIGOR: Apply maximum clinical safety standards. Audit protocols for patient consent and bio-data anonymization."
-            elif request.ethics_rigor == "strict":
-                ethics_instruction = "\n- STRICT RIGOR: Enforce extreme academic integrity and data privacy. Flag any potential citation or data handling bias."
-
-                ethics_instruction = "STRICT PRIVACY AUDIT: Identify any potential data anonymization failures or strict regulatory compliance issues."
-
-            density_instruction = "Use compact, dense bullet points." if request.info_density == "compact" else "Use comfortable, explanatory paragraphs where needed."
-
-            # ============ LONG-TERM SEMANTIC MEMORY ============
-            past_context_instruction = ""
+            # 3. Récupération de la mémoire sémantique
+            past_context = ""
             if request.user_id:
-                # Search for past memories related to the document titles/content
-                query = f"Research related to: {', '.join([d.title for d in request.documents[:3]])}"
+                query = f"Research regarding: {', '.join([d.title for d in request.documents[:2]])}"
                 memories = await self.memory_service.search_memory(request.user_id, query)
-                
                 if memories:
-                    logger.info(f"K2 Think: Retrieved {len(memories)} past memories for user {request.user_id}")
-                    memories_text = "\n- ".join(memories)
-                    past_context_instruction = f"\n\nPAST RESEARCH CONTEXT & PREFERENCES (Your memory of this researcher):\n- {memories_text}"
+                    past_context = "\n- ".join(memories)
 
-            system_prompt = f"""You are the K2 Think V2 Scientific Co-Investigator. 
-Your core capability and primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
-Do NOT just summarize individual papers. You MUST cross-reference, compare, and contrast the provided documents to uncover deeper strategic insights.
-{past_context_instruction}
+            # 4. Définition du Prompt Système
+            system_template = """You are the K2 Think V2 Scientific Co-Investigator.
+Your primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
 
-GLOBAL RESEARCHER PROFILE & OBJECTIVES (Apply these filters to your strategy):
-{request.user_profile if request.user_profile else "General scientific investigation without specific profile constraints."}
+PAST RESEARCH CONTEXT:
+{past_context}
 
-REASONING GUIDELINES:
-- DEPTH: {depth_instruction}
-- ETHICS: {ethics_instruction}
-- DENSITY: {density_instruction}
+RESEARCHER PROFILE:
+{user_profile}
 
-MANDATORY CITATION RULE: Every claim, contradiction, or gap you identify MUST be attributed to its source using the exact (Author, Year) format as provided in the DOCUMENT header CITATION_KEY.
+REASONING PARAMETERS:
+- Depth: {depth}
+- Ethics: {ethics}
+- Density: {density}
 
-Analyze the provided documents to formulate a comprehensive research strategy:
-1. METHODOLOGICAL COMPARISON: Explicitly compare how different documents approach the same problem (e.g., Paper A uses X, Paper B uses Y).
-2. SCIENTIFIC CONTRADICTIONS: Identify exact points where the documents disagree on findings, variables, or conclusions. Explain the conflict.
-3. RESEARCH GAPS & SYNTHESIS: Find the "white space" between the papers. What did none of them evaluate? What new hybrid approach could be taken?
-4. HYPOTHESIS STRESS TESTER: Generate counter-hypotheses based on biases or limitations observed *across* the methodology of the combined papers.
-5. RESOURCE-OPTIMIZED EXPERIMENTAL PROTOCOL: Design a *net-new* experiment specifically engineered to resolve the contradictions or fill the gaps you just found. 
-   CRITICAL: Optimize the protocol for modern resource constraints (e.g., Budget, Time, Hardware like NVIDIA GPUs).
-6. REASONING TRACE: Show your chain of thought (e.g., "Compared metric X from Doc 1 with Doc 2 -> Found contradiction -> Designed Step 3 to resolve").
+Analyze the provided documents to uncover:
+1. METHODOLOGICAL COMPARISON
+2. SCIENTIFIC CONTRADICTIONS
+3. RESEARCH GAPS
+4. HYPOTHESIS STRESS TEST
+5. RESOURCE-OPTIMIZED EXPERIMENTAL PROTOCOL
 
-OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this structure:
-{{
-  "confidence_score": 0.95,
-  "reasoning_summary": "Summary of steps taken...",
-  "contradictions": [{{ "topic": "...", "conflict": "...", "resolution_path": "...", "citations": ["(Author, Year)"] }}],
-  "research_gaps": [{{ "description": "...", "importance_score": 0.9, "related_variables": ["...", "..."], "suggested_investigation": "...", "citations": ["(Author, Year)"] }}],
-  "counter_hypotheses": [{{ "hypothesis": "...", "rationale": "...", "potential_bias": "...", "validation_experiment": "...", "citations": ["(Author, Year)"] }}],
-  "protocol": {{
-    "title": "...",
-    "hypothesis": "...",
-    "objective": "...",
-    "estimated_duration_days": 30,
-    "estimated_budget_usd": 5000,
-    "resource_optimization": "...",
-    "steps": [{{ "description": "...", "duration_hours": 2, "materials": ["..."], "risk_level": "low" }}],
-    "variables": [{{ "name": "...", "type": "independent|dependent|control", "measurement_unit": "..." }}]
-  }},
-  "recommendations": ["Recommendation 1"]
-}}"""
+{format_instructions}
+"""
+            
+            parser = JsonOutputParser()
+            
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_template),
+                ("user", "Analyze these documents and provide results:\n\n{context}")
+            ])
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Analyze these documents and provide results in JSON:\n\n{context}"}
-            ]
+            # 5. Exécution de la chaîne
+            chain = prompt | llm | parser
             
-            # Appel K2 Think
-            response = await self.k2_client.chat_completion(messages=messages)
+            self._log_reasoning("K2_ANALYSIS", "Chain Execution", "Invoking LangChain LCEL with K2 Think V2")
             
-            # Extraction robuste du JSON
-            content = response['choices'][0]['message']['content']
-            
-            # 1. Supprimer le bloc <think>...</think> ou le tag </think> s'ils existent
-            if "</think>" in content:
-                content = content.split("</think>")[-1].strip()
-            
-            # 2. Extraire le bloc JSON (entre ```json et ``` ou par les premières/dernières accolades)
-            import re
-            json_match = re.search(r'(\{.*\})', content, re.DOTALL)
-            if json_match:
-                content = json_match.group(1)
-            elif "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-            
-            k2_analysis = json.loads(content)
-            
-            logger.info(f"K2 Think reasoning completed and parsed")
-            self._add_audit_log(
-                "k2_reasoning_completion",
-                "K2 Think V2 multi-doc analysis",
-                f"Successfully parsed JSON results from K2 API"
-            )
-            
-            # ============ CONVERSION K2 RESULTS -> SCHEMAS ============
-            comparative_analysis = self._convert_k2_to_comparative_analysis(
-                k2_analysis, request.documents
-            )
-            
+            k2_analysis = await chain.ainvoke({
+                "past_context": past_context or "No past context.",
+                "user_profile": request.user_profile or "General researcher.",
+                "depth": request.reasoning_depth,
+                "ethics": request.ethics_rigor,
+                "density": request.info_density,
+                "format_instructions": parser.get_format_instructions(),
+                "context": context
+            })
+
+            # 6. Conversion en schémas internes
+            comparative_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
             counter_hypotheses = self._convert_k2_to_counter_hypotheses(k2_analysis)
-            
             protocol = await self._convert_k2_to_protocol(k2_analysis)
             
-            research_gaps = comparative_analysis.research_gaps
-            
-            # ============ SYNTHÈSE FINALE ============
             result = AnalysisResult(
                 request_id=request_id,
                 documents_analyzed=len(request.documents),
-                reasoning_summary=k2_analysis.get("reasoning_summary"),
+                reasoning_summary=k2_analysis.get("reasoning_summary", "Analysis completed."),
                 comparative_analysis=comparative_analysis,
-                research_gaps=research_gaps,
+                research_gaps=comparative_analysis.research_gaps,
                 counter_hypotheses=counter_hypotheses,
                 proposed_protocol=protocol,
                 strategic_recommendations=k2_analysis.get("recommendations", []),
                 reasoning_trace=self.reasoning_trace,
-                confidence_overall=k2_analysis.get("confidence_score", 0.8)
+                confidence_overall=k2_analysis.get("confidence_score", 0.85)
             )
-            
-            self._log_reasoning(
-                "COMPLETION",
-                "Analysis Complete",
-                f"K2 Think analysis finished with confidence: {result.confidence_overall:.1%}"
-            )
-            
-            logger.info(f"Analysis {request_id} completed successfully")
-            
-            # ============ MEMORY CONSOLIDATION ============
+
+            # 7. Consolidation de la mémoire
             if request.user_id:
                 try:
-                    # Determine project_id (this might need to be passed in the request or handled by orchestration)
-                    # For now we use a generic placeholder if not available
                     await self.memory_service.consolidate_analysis(
                         user_id=request.user_id,
                         project_id="auto_consolidation",
                         analysis_result=result
                     )
                 except Exception as mem_err:
-                    logger.error(f"Failed to consolidate memory: {mem_err}")
-                    
+                    logger.error(f"Memory consolidation failed: {mem_err}")
+
             return result
-            
+
         except Exception as e:
-            logger.error(f"K2 Think Analysis Failed: {str(e)}")
-            self._log_reasoning(
-                "ERROR",
-                "K2 Think Analysis Failed",
-                str(e)
-            )
+            logger.error(f"K2 Think Analysis (LangChain) Failed: {str(e)}")
+            self._log_reasoning("ERROR", "Analysis Failure", str(e))
             raise e
+
     async def chat(
         self,
         message: str,
@@ -255,8 +175,11 @@ OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this stru
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Discussion interactive avec K2 Think sur l'analyse
+        Discussion interactive avec K2 Think sur l'analyse via LangChain
         """
+        from langchain_openai import ChatOpenAI
+        from langchain.schema import SystemMessage, HumanMessage, AIMessage
+        
         system_prompt = f"""You are the K2 Think V2 Scientific Assistant. 
 You are discussing a specific scientific analysis with a researcher.
 CONTEXT OF ANALYSIS:
@@ -276,17 +199,27 @@ Keep your tone professional, strategic, and scientifically rigorous.
                 memories_text = "\n- ".join(memories)
                 system_prompt += f"\n\nPAST USER CONTEXT (Relevant to this query):\n- {memories_text}"
 
-        messages = [{"role": "system", "content": system_prompt}]
+        llm = ChatOpenAI(
+            model="MBZUAI-IFM/K2-Think-v2",
+            openai_api_key=settings.K2_THINK_API_KEY,
+            openai_api_base=settings.K2_THINK_API_URL,
+            temperature=0.7
+        )
+
+        messages = [SystemMessage(content=system_prompt)]
         
         # Add history
         for msg in history:
-            messages.append(msg)
+            if msg["role"] == "user":
+                messages.append(HumanMessage(content=msg["content"]))
+            else:
+                messages.append(AIMessage(content=msg["content"]))
             
         # Add current message
-        messages.append({"role": "user", "content": message})
+        messages.append(HumanMessage(content=message))
         
-        response = await self.k2_client.chat_completion(messages=messages)
-        content = response['choices'][0]['message']['content']
+        response = await llm.ainvoke(messages)
+        content = response.content
         
         # Handle reasoning if present
         reasoning = ""
@@ -386,9 +319,7 @@ Keep your tone professional, strategic, and scientifically rigorous.
             if val is None: return default
             if isinstance(val, (int, float)): return float(val)
             try:
-                # Remove common non-numeric chars like $, commas, etc.
                 cleaned = str(val).replace('$', '').replace(',', '').replace(' ', '')
-                # Extract first number found
                 import re
                 match = re.search(r"[-+]?\d*\.\d+|\d+", cleaned)
                 if match:
