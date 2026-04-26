@@ -36,11 +36,28 @@ class MemoryService:
                 logger.info(f"Creating Qdrant collection: {self.COLLECTION_NAME}")
                 self.client.create_collection(
                     collection_name=self.COLLECTION_NAME,
-                    vectors_config=models.VectorParams(
-                        size=384, # Taille pour BGE-small-en-v1.5
-                        distance=models.Distance.COSINE
-                    )
+                    vectors_config={
+                        "fast-bge-small-en-v1.5": models.VectorParams(
+                            size=384,
+                            distance=models.Distance.COSINE
+                        )
+                    }
                 )
+            else:
+                # Vérifier si le vecteur nommé existe, sinon on recrée (pour corriger le format hackathon)
+                collection_info = self.client.get_collection(self.COLLECTION_NAME)
+                if "fast-bge-small-en-v1.5" not in collection_info.config.params.vectors:
+                    logger.warning(f"Collection {self.COLLECTION_NAME} has wrong vector format. Recreating...")
+                    self.client.delete_collection(self.COLLECTION_NAME)
+                    self.client.create_collection(
+                        collection_name=self.COLLECTION_NAME,
+                        vectors_config={
+                            "fast-bge-small-en-v1.5": models.VectorParams(
+                                size=384,
+                                distance=models.Distance.COSINE
+                            )
+                        }
+                    )
             
             # Vérifier/Créer l'index user_id séparément pour être sûr
             try:
