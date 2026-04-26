@@ -65,6 +65,20 @@ async def lifespan(app: FastAPI):
                 with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
                     ddl_conn.execute(text("ALTER TABLE users ADD COLUMN research_profile TEXT"))
                 logger.info("Added 'research_profile' column to users table.")
+
+            # Check if 'remote_id' column exists in research_papers
+            res_remote = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='research_papers' AND column_name='remote_id'")).fetchone()
+            if not res_remote:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    ddl_conn.execute(text("ALTER TABLE research_papers ADD COLUMN remote_id TEXT"))
+                logger.info("Added 'remote_id' column to research_papers table.")
+
+            # Check if 'summary' column exists in research_papers
+            res_sum = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='research_papers' AND column_name='summary'")).fetchone()
+            if not res_sum:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    ddl_conn.execute(text("ALTER TABLE research_papers ADD COLUMN summary TEXT"))
+                logger.info("Added 'summary' column to research_papers table.")
     except Exception as e:
         logger.warning(f"Auto-migration warning (non-fatal): {str(e)}")
 
