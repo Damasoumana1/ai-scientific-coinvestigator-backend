@@ -137,41 +137,48 @@ RESEARCHER PROFILE:
             import re
             import json
 
+            logger.info(f"K2 RAW RESPONSE (len={len(raw_content)}): {raw_content[:200]}...")
+
             # Supprimer les réflexions
             content = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
             
-            # Tenter de trouver le bloc JSON entre [RESULT] et [/RESULT] si l'IA a suivi la consigne
+            clean_json = ""
+            
+            # Tenter de trouver le bloc JSON entre [RESULT] et [/RESULT]
             tag_match = re.search(r'\[RESULT\](.*?)\[/RESULT\]', content, re.DOTALL)
             if tag_match:
                 clean_json = tag_match.group(1).strip()
-            else:
+            
+            if not clean_json:
                 # Sinon, on cherche le dernier bloc commençant par { et finissant par }
-                # On utilise une recherche non-gloutonne mais on prend le dernier match
                 all_blocks = re.findall(r'(\{.*\})', content, re.DOTALL)
-                clean_json = all_blocks[-1] if all_blocks else content
+                if all_blocks:
+                    clean_json = all_blocks[-1]
+                else:
+                    # Recherche manuelle par index (plus robuste si regex s'emmêle)
+                    start_idx = content.find('{')
+                    end_idx = content.rfind('}')
+                    if start_idx != -1 and end_idx != -1:
+                        clean_json = content[start_idx:end_idx + 1]
+            
+            if not clean_json:
+                logger.error(f"No JSON block found in content: {content[:100]}...")
+                raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
 
             # RÉPARATEUR DE JSON (Common LLM errors)
-            # 1. Supprimer les commentaires style // ou #
             clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
-            # 2. Remplacer les guillemets simples par des doubles (si ce ne sont pas des apostrophes)
-            # (Approximation simple mais souvent efficace pour les clés)
-            # clean_json = clean_json.replace("'", '"') # Trop risqué pour le texte
-            
-            # 3. Supprimer les virgules traînantes avant un ] ou }
             clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
 
             try:
                 k2_analysis = json.loads(clean_json)
             except Exception as e:
                 logger.error(f"JSON.LOADS failed: {e}")
-                # Tentative désespérée : parse_json_markdown (si on peut l'émuler)
+                # Tentative ultime : nettoyage markdown
                 try:
-                    # Remplacement manuel des backticks markdown si présents
-                    clean_json = clean_json.replace("```json", "").replace("```", "").strip()
-                    k2_analysis = json.loads(clean_json)
+                    clean_json_fixed = clean_json.replace("```json", "").replace("```", "").strip()
+                    k2_analysis = json.loads(clean_json_fixed)
                 except:
-                    logger.error("All JSON parsing attempts failed.")
-                    logger.debug(f"RAW CONTENT: {raw_content}")
+                    logger.error(f"All JSON parsing attempts failed. Cleaned JSON was: {clean_json[:200]}...")
                     raise e
 
             # 6. Conversion en schémas internes
