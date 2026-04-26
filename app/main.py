@@ -23,6 +23,7 @@ from app.db.models.research_gap import ResearchGap
 from app.db.models.reasoning_trace import ReasoningTrace
 from app.db.models.export import Export
 from app.db.models.activity_log import ActivityLog
+from app.db.models.chat_message import ChatMessage
 
 
 
