@@ -129,6 +129,7 @@ async def discovery_search(request: SearchRequest, db: Session = Depends(get_db)
                 # Upgrade to direct PDF URL if current entry doesn't have one
                 if paper.get("has_pdf") and not existing.get("has_pdf"):
                     existing["url"] = paper["url"]
+                    existing["pdf_url"] = paper["url"]
                     existing["has_pdf"] = True
 
                 # Merge categories/topics
@@ -152,6 +153,7 @@ async def discovery_search(request: SearchRequest, db: Session = Depends(get_db)
                     "summary": paper.get("summary", "No abstract available."),
                     "publication_date": paper.get("publication_date", "n.d."),
                     "url": paper.get("url"),
+                    "pdf_url": paper.get("url") if paper.get("has_pdf") else None,
                     "has_pdf": paper.get("has_pdf", False),
                     "sources": [source],
                     "raw_categories": paper.get("categories", []),
