@@ -122,7 +122,7 @@ You must return a JSON object with the following structure:
 }}
 
 [FINAL OUTPUT STEP]
-Generate your internal reasoning in <think> tags first, then output the final JSON between [RESULT] and [/RESULT].
+Generate your internal reasoning in <think> tags first (KEEP IT VERY BRIEF, MAX 200 WORDS, to avoid token limits), then output the final JSON between [RESULT] and [/RESULT]. Do not truncate the JSON.
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
