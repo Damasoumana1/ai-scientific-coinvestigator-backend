@@ -73,3 +73,11 @@ class UserRepository(BaseRepository[User, UserCreate, UserCreate]):
             self.db.refresh(user)
             return True
         return False
+
+    def update_profile(self, user: User, profile: str) -> User:
+        """Met à jour le profil de recherche de l'utilisateur"""
+        user.research_profile = profile
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user

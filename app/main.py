@@ -58,6 +58,13 @@ async def lifespan(app: FastAPI):
             with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
                 ddl_conn.execute(text("UPDATE users SET credits = 2000 WHERE credits IS NULL"))
             logger.info("Backfilled NULL credits to 2000 for existing users.")
+
+            # Check if 'research_profile' column exists
+            res_profile = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='research_profile'")).fetchone()
+            if not res_profile:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    ddl_conn.execute(text("ALTER TABLE users ADD COLUMN research_profile TEXT"))
+                logger.info("Added 'research_profile' column to users table.")
     except Exception as e:
         logger.warning(f"Auto-migration warning (non-fatal): {str(e)}")
 

@@ -75,6 +75,7 @@ async def start_project_analysis(
             user_repo.deduct_credits(current_user, 50)
             
         request.user_id = str(current_user.id)
+        request.user_profile = current_user.research_profile
         target_project_id = project_id
         
         # If project_id is the "nil" UUID from frontend, use/create a real project for history
@@ -281,6 +282,7 @@ async def get_specific_analysis(
             k2_request = K2AnalysisRequest(
                 documents=docs,
                 user_id=str(current_user.id),
+                user_profile=current_user.research_profile,
                 reasoning_depth=depth,
                 ethics_rigor=rigor,
                 info_density=density

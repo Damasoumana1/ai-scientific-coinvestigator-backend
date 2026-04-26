@@ -21,6 +21,7 @@ class User(Base):
     role = Column(Text)
     credits = Column(Integer, default=2000)
     last_refill_date = Column(Date, default=datetime.utcnow().date())
+    research_profile = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

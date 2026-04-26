@@ -119,6 +119,7 @@ class AnalysisRequest(BaseModel):
     """Requête d'analyse scientifique"""
     documents: List[ScientificDocument]
     user_id: Optional[str] = None
+    user_profile: Optional[str] = None
     user_notes: Optional[str] = None
     
     # Scientific Settings from UI

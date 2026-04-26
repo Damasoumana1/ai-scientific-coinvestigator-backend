@@ -196,8 +196,26 @@ async def register_and_login(user: UserCreate, db: Session = Depends(get_db)):
         )
 
 
+from pydantic import BaseModel
+
+class ProfileUpdate(BaseModel):
+    research_profile: str
+
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user = Depends(get_current_user), db: Session = Depends(get_db)):
     """Récupère les infos de l'utilisateur courant et déclenche le refill journalier si nécessaire"""
     user_repo = UserRepository(db)
     return user_repo.check_and_refill_credits(current_user)
+
+@router.put("/me/profile", response_model=UserResponse)
+async def update_research_profile(
+    profile_data: ProfileUpdate,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Met à jour le profil de recherche de l'utilisateur"""
+    if current_user.id.hex.startswith("0000"):
+        raise HTTPException(status_code=400, detail="Cannot update profile in demo mode")
+    
+    user_repo = UserRepository(db)
+    return user_repo.update_profile(current_user, profile_data.research_profile)

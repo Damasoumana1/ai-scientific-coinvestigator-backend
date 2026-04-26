@@ -118,6 +118,9 @@ Your core capability and primary directive is MULTI-DOCUMENT REASONING and KNOWL
 Do NOT just summarize individual papers. You MUST cross-reference, compare, and contrast the provided documents to uncover deeper strategic insights.
 {past_context_instruction}
 
+GLOBAL RESEARCHER PROFILE & OBJECTIVES (Apply these filters to your strategy):
+{request.user_profile if request.user_profile else "General scientific investigation without specific profile constraints."}
+
 REASONING GUIDELINES:
 - DEPTH: {depth_instruction}
 - ETHICS: {ethics_instruction}
