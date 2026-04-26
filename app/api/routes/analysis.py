@@ -19,6 +19,7 @@ from app.services.export_service import ExportService
 from app.services.arxiv_service import ArXivService
 from app.services.openalex_service import OpenAlexService
 from fastapi.responses import Response, FileResponse
+from app.core.logging import logger
 
 router = APIRouter()
 
