@@ -14,9 +14,11 @@ class ResearchPaper(Base):
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=False)
+    remote_id = Column(Text, index=True) # ID ArXiv, PubMed, etc.
     title = Column(Text)
     authors = Column(Text)
     journal = Column(Text)
+    summary = Column(Text) # Abstract
     publication_year = Column(Integer)
     pdf_path = Column(Text)
     uploaded_at = Column(DateTime, default=datetime.utcnow)

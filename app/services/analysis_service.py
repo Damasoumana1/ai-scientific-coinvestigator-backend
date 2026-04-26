@@ -54,32 +54,78 @@ class AnalysisService:
         """Tâche de fond pour traiter l'analyse"""
         from app.services.k2_think_engine import K2ThinkEngine
         from app.db.repositories.paper_repo import PaperRepository
+        from app.db.models.research_paper import ResearchPaper
         from app.models.schemas import AnalysisRequest as K2AnalysisRequest, ScientificDocument
         from app.db.models.reasoning_trace import ReasoningTrace
+        from app.services.arxiv_service import ArXivService
+        from app.services.doaj_service import DOAJService
+        from app.services.pubmed_service import PubMedService
+        from app.services.openalex_service import OpenAlexService
         
         db = self.analysis_repo.db
         try:
-            # 1. Fetch papers from DB
+            # 1. Fetch papers from DB or Remote
             paper_repo = PaperRepository(db)
-            paper_uuids = []
-            for pid in request.paper_ids:
-                try:
-                    paper_uuids.append(UUID(pid) if isinstance(pid, str) else pid)
-                except ValueError:
-                    continue
-            
-            db_papers = [paper_repo.get_by_id(pid) for pid in paper_uuids]
+            analysis_run = self.analysis_repo.get_by_id(UUID(analysis_id))
+            project_id = analysis_run.project_id
             
             docs = []
-            for p in db_papers:
-                if p:
+            for pid in request.paper_ids:
+                # Try UUID search first
+                paper = None
+                try:
+                    paper_uuid = UUID(pid)
+                    paper = paper_repo.get_by_id(paper_uuid)
+                except (ValueError, AttributeError):
+                    # Try Remote ID search in DB
+                    paper = db.query(ResearchPaper).filter(
+                        ResearchPaper.remote_id == pid,
+                        ResearchPaper.project_id == project_id
+                    ).first()
+                
+                if not paper:
+                    # FETCH FROM REMOTE AND SAVE
+                    logger.info(f"Paper {pid} not in DB. Fetching metadata on-demand...")
+                    remote_data = None
+                    try:
+                        if "doaj_" in pid:
+                            svc = DOAJService(); remote_data = svc.fetch_papers(pid.replace("doaj_", ""), 1)
+                        elif "pubmed_" in pid:
+                            svc = PubMedService(); remote_data = svc.fetch_papers(pid.replace("pubmed_", ""), 1)
+                        elif "openalex_" in pid:
+                            svc = OpenAlexService(); remote_data = svc.fetch_papers(pid.replace("openalex_", ""), 1)
+                        else:
+                            svc = ArXivService(); remote_data = svc.fetch_papers(pid, 1)
+                        
+                        if remote_data:
+                            p_info = remote_data[0]
+                            paper = ResearchPaper(
+                                project_id=project_id,
+                                remote_id=pid,
+                                title=p_info.get("title", "Unknown"),
+                                authors=", ".join(p_info.get("authors", [])),
+                                summary=p_info.get("summary", ""),
+                                publication_year=datetime.now().year # Fallback
+                            )
+                            db.add(paper)
+                            db.commit()
+                            db.refresh(paper)
+                            logger.info(f"Saved remote paper {pid} to project {project_id}")
+                    except Exception as fetch_err:
+                        logger.error(f"Failed to fetch/save remote paper {pid}: {fetch_err}")
+
+                if paper:
                     docs.append(ScientificDocument(
-                        id=str(p.id),
-                        title=p.title,
-                        abstract=p.summary or "",
-                        content=p.summary or "", # TODO: Full text if available
-                        url=p.pdf_path or ""
+                        id=str(paper.id),
+                        title=paper.title,
+                        abstract=paper.summary or "",
+                        content=paper.summary or "", 
+                        url=paper.pdf_path or ""
                     ))
+
+            if not docs:
+                logger.error(f"No documents found for analysis {analysis_id}")
+                raise ValueError("Zero documents identified for analysis. Aborting.")
 
             # 2. Prepare K2 Request
             k2_req = K2AnalysisRequest(
@@ -96,19 +142,17 @@ class AnalysisService:
             result = await engine.process_analysis_request(k2_req)
 
             # 4. Save Reasoning Trace
-            if result is None:
-                raise ValueError("K2 Think Engine returned no result. Check API keys and logs.")
-
             trace = ReasoningTrace(
                 analysis_id=UUID(analysis_id),
-                trace_data=json.dumps(result.get("reasoning_steps", [])),
-                final_conclusion=result.get("strategic_recommendations", ""),
+                trace_data=json.dumps(result.reasoning_trace),
+                final_conclusion=result.reasoning_summary,
                 tokens_used=0 
             )
             db.add(trace)
             
             # 5. Complete Analysis
-            self.complete_analysis(UUID(analysis_id), result=result)
+            # result is a Pydantic model, convert to dict for storage
+            self.complete_analysis(UUID(analysis_id), result=result.model_dump())
             db.commit()
 
         except Exception as e:

@@ -88,26 +88,19 @@ class K2ThinkEngine:
             system_template = """You are the K2 Think V2 Scientific Co-Investigator.
 Your primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
 
+IMPORTANT: Your internal reasoning (thoughts) should be contained within <think></think> tags. 
+However, your FINAL output MUST be a single, valid JSON object and NOTHING else. 
+Do not include conversational filler outside the JSON.
+
 PAST RESEARCH CONTEXT:
 {past_context}
 
 RESEARCHER PROFILE:
 {user_profile}
-
-REASONING PARAMETERS:
-- Depth: {depth}
-- Ethics: {ethics}
-- Density: {density}
-
-Analyze the provided documents to uncover:
-1. METHODOLOGICAL COMPARISON
-2. SCIENTIFIC CONTRADICTIONS
-3. RESEARCH GAPS
-4. HYPOTHESIS STRESS TEST
-5. RESOURCE-OPTIMIZED EXPERIMENTAL PROTOCOL
-
-{format_instructions}
 """
+            
+            # Re-ajouter les instructions de formatage spécifiques au JsonOutputParser
+            system_template += "\n{format_instructions}\n"
             
             parser = JsonOutputParser()
             

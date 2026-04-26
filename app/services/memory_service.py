@@ -41,8 +41,16 @@ class MemoryService:
                         distance=models.Distance.COSINE
                     )
                 )
+                
+                # Créer un index sur user_id pour permettre le filtrage rapide et obligatoire
+                self.client.create_payload_index(
+                    collection_name=self.COLLECTION_NAME,
+                    field_name="user_id",
+                    field_schema=models.PayloadSchemaType.KEYWORD,
+                )
+                logger.info(f"Payload index created for 'user_id' in {self.COLLECTION_NAME}")
         except Exception as e:
-            logger.error(f"Failed to ensure Qdrant collection: {e}")
+            logger.error(f"Failed to ensure Qdrant collection or index: {e}")
 
     async def save_memory(self, user_id: str, content: str, metadata: Dict[str, Any] = None):
         """Sauvegarde un fragment de savoir dans la mémoire sémantique"""
