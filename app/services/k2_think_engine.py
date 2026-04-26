@@ -246,6 +246,7 @@ OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this stru
                 "K2 Think Analysis Failed",
                 str(e)
             )
+            raise e
     async def chat(
         self,
         message: str,

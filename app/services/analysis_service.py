@@ -44,7 +44,9 @@ class AnalysisService:
             analysis.completed_at = datetime.utcnow()
             if result:
                 analysis.result_data = json.dumps(result)
-            self.analysis_repo.update(analysis_id, analysis)
+            self.analysis_repo.db.add(analysis)
+            self.analysis_repo.db.commit()
+            self.analysis_repo.db.refresh(analysis)
         
         return analysis
 
@@ -94,6 +96,9 @@ class AnalysisService:
             result = await engine.process_analysis_request(k2_req)
 
             # 4. Save Reasoning Trace
+            if result is None:
+                raise ValueError("K2 Think Engine returned no result. Check API keys and logs.")
+
             trace = ReasoningTrace(
                 analysis_id=UUID(analysis_id),
                 trace_data=json.dumps(result.get("reasoning_steps", [])),

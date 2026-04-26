@@ -45,18 +45,29 @@ Scientific research is often hindered by the massive volume of existing literatu
 
 ---
 
-## 🛠️ Technical Architecture
+## 🛠️ Technical Architecture & Memory System
 
-The platform uses a state-of-the-art stack designed for "Scientific Reasoning" depth:
+The "Co-Investigator" uses a sophisticated **3-Level Memory System** to simulate a real human research partner:
+
+1. **Level 1: Conversation Memory (PostgreSQL)**
+   - Persists every chat message, reasoning trace, and user interaction. Discussions are never lost on refresh.
+2. **Level 2: Semantic Memory (Qdrant Vector DB)**
+   - Learns from every analysis. It cross-references findings between projects using vector embeddings (RAG).
+3. **Level 3: Research Profile (PostgreSQL)**
+   - Stores your global research objectives, expertise, and constraints to tailor all AI reasoning to your specific needs.
+
+### SQL + Vector Hybrid Strategy:
+- **PostgreSQL (Supabase)** handles **what you've done** (History, Credits, Projects).
+- **Qdrant (Vector DB)** handles **what the AI understood** (Semantic Knowledge, Relationships).
 
 ```mermaid
 graph TD
     A[Frontend: Next.js] --> B[API: FastAPI]
-    B --> C[Orchestrator: K2 Logic]
-    C --> D[Reasoning Engine: K2 Think V2]
+    B --> C[Orchestrator: K2 Think Engine]
+    C --> D[Exclusive Model: K2 Think V2 API]
     D --> E[Semantic Memory: Qdrant Vector DB]
     D --> F[Relational DB: PostgreSQL / Supabase]
-    C --> G[Global Discovery: OpenAlex/PubMed/ArXiv]
+    C --> G[Global Discovery: OpenAlex/PubMed/ArXiv/DOAJ]
     D --> H[Export: LaTeX / CSV / PDF]
 ```
 
