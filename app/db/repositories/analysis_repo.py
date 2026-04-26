@@ -26,3 +26,10 @@ class AnalysisRepository(BaseRepository[AnalysisRun, AnalysisRequest, AnalysisRe
         return self.db.query(AnalysisRun).filter(
             AnalysisRun.status == "pending"
         ).all()
+
+    def get_by_user(self, user_id: UUID, skip: int = 0, limit: int = 100) -> List[AnalysisRun]:
+        """Récupère toutes les analyses d'un utilisateur (via ses projets)"""
+        from app.db.models.project import Project
+        return self.db.query(AnalysisRun).join(Project).filter(
+            Project.user_id == user_id
+        ).order_by(AnalysisRun.started_at.desc()).offset(skip).limit(limit).all()

@@ -27,3 +27,15 @@ class ProjectService:
     def get_user_projects(self, user_id: UUID, skip: int = 0, limit: int = 100):
         """Récupère projets de l'utilisateur"""
         return self.project_repo.get_by_user(user_id, skip, limit)
+
+    def get_or_create_default_project(self, user_id: UUID) -> Project:
+        """Récupère ou crée le projet par défaut de l'utilisateur"""
+        projects = self.get_user_projects(user_id)
+        if projects:
+            return projects[0]
+        return self.create_project(
+            user_id=user_id,
+            title="General Research",
+            description="Default project for quick analysis",
+            research_field="General Science"
+        )

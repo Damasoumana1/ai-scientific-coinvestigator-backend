@@ -23,6 +23,31 @@ from fastapi.responses import Response, FileResponse
 router = APIRouter()
 
 
+@router.get("/history", response_model=List[dict])
+async def get_user_analysis_history(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 50
+):
+    """Récupère l'historique complet des analyses de l'utilisateur"""
+    service = AnalysisService(db)
+    analyses = service.analysis_repo.get_by_user(current_user.id, skip, limit)
+    
+    results = []
+    for a in analyses:
+        results.append({
+            "id": str(a.id),
+            "project_id": str(a.project_id),
+            "project_title": a.project.title,
+            "status": a.status,
+            "model_used": a.model_used,
+            "started_at": a.started_at,
+            "completed_at": a.completed_at
+        })
+    return results
+
+
 @router.post("/{project_id}", response_model=dict, status_code=status.HTTP_202_ACCEPTED)
 async def start_project_analysis(
     project_id: str,
@@ -49,33 +74,29 @@ async def start_project_analysis(
         if not current_user.id.hex.startswith("0000"):
             user_repo.deduct_credits(current_user, 50)
             
-        # Create analysis run
+        target_project_id = project_id
+        
+        # If project_id is the "nil" UUID from frontend, use/create a real project for history
         if project_id.startswith("00000000"):
-             # For demo/test mode with nil UUID, we use stateless mock processing
-             paper_ids_str = ",".join(request.paper_ids)
-             # Encode settings in the ID for stateless demo mode
-             mock_id = f"demo_real_{request.reasoning_depth}_{request.ethics_rigor}_{request.info_density}_{paper_ids_str}"
-             return {
-                 "message": "Demo mode: Analysis started (Real-time K2 Processing)",
-                 "analysis_id": mock_id,
-                 "status": "pending",
-                 "mode": "demo",
-                 "remaining_credits": current_user.credits
-             }
+            from app.services.project_service import ProjectService
+            proj_service = ProjectService(db)
+            default_proj = proj_service.get_or_create_default_project(current_user.id)
+            target_project_id = str(default_proj.id)
 
         analysis = service.create_analysis_run(
-            project_id=project_id,
-            model_used="K2_Think_API"
+            project_id=target_project_id,
+            model_used=request.model or "k2-think-pro"
         )
         
         return {
-            "message": "Analysis started",
-            "analysis_id": analysis.id,
-            "status": "pending",
-            "remaining_credits": current_user.credits
+            "message": "Analysis started successfully",
+            "analysis_id": str(analysis.id),
+            "project_id": target_project_id,
+            "status": analysis.status
         }
     except Exception as e:
-        # Fallback to Mock Analysis if DB is down or other integrity issues
+        logger.error(f"Failed to start analysis: {e}")
+        # Fallback to demo mode only if something really fails with DB
         if any(keyword in str(e).lower() for keyword in ["operationalerror", "connection", "integrityerror", "foreign key"]):
             # Encapsulate paper IDs in the analysis_id to pass them to the GET request in stateless demo mode
              paper_ids_str = ",".join(request.paper_ids)

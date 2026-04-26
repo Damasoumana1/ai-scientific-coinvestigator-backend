@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Security — REQUIRED: must be set in .env
     SECRET_KEY: str = "your-super-secret-key-change-this-in-production-must-be-at-least-32-characters"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     # Frontend URL (Used for OAuth redirects)
     FRONTEND_URL: str = "https://ai-scientific-coinvestigator-ui.vercel.app"

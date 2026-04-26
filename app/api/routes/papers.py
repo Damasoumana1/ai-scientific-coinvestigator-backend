@@ -38,20 +38,33 @@ async def upload_paper(
 
     paper_title = title or file.filename.replace(".pdf", "")
 
-    # Only record in DB if project_id is provided and DB is available
-    if project_id:
-        try:
-            service = PaperService(db)
-            new_paper = service.add_paper(
-                project_id=UUID(project_id),
-                title=paper_title,
-                pdf_path=dest_path
-            )
-            return {"message": "Paper uploaded and recorded", "file": dest_path, "id": str(new_paper.id)}
-        except Exception:
-            pass
-
-    return {"message": "Paper uploaded successfully", "file": dest_path, "id": file_id, "filename": file.filename}
+    # Always record in DB if user is authenticated
+    try:
+        from app.services.project_service import ProjectService
+        proj_service = ProjectService(db)
+        
+        target_project_id = None
+        if not project_id or project_id.startswith("00000000"):
+            default_proj = proj_service.get_or_create_default_project(current_user.id)
+            target_project_id = default_proj.id
+        else:
+            target_project_id = UUID(project_id)
+            
+        service = PaperService(db)
+        new_paper = service.add_paper(
+            project_id=target_project_id,
+            title=paper_title,
+            pdf_path=dest_path
+        )
+        return {
+            "message": "Paper uploaded and recorded", 
+            "file": dest_path, 
+            "id": str(new_paper.id),
+            "project_id": str(target_project_id)
+        }
+    except Exception as e:
+        logger.error(f"Failed to record paper in DB: {e}")
+        return {"message": "Paper uploaded locally (DB record failed)", "file": dest_path, "id": file_id, "filename": file.filename}
 
 
 @router.post("/{project_id}", response_model=dict, status_code=status.HTTP_201_CREATED)
