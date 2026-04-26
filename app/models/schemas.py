@@ -118,6 +118,7 @@ class ExperimentalProtocol(BaseModel):
 class AnalysisRequest(BaseModel):
     """Requête d'analyse scientifique"""
     documents: List[ScientificDocument]
+    model: Optional[str] = None
     user_id: Optional[str] = None
     user_profile: Optional[str] = None
     user_notes: Optional[str] = None

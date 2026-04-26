@@ -88,6 +88,7 @@ class PaperResponse(PaperBase):
 class AnalysisRequest(BaseModel):
     analysis_type: str = "comprehensive"
     paper_ids: List[str]
+    model: Optional[str] = None
     user_id: Optional[str] = None
     user_profile: Optional[str] = None
     reasoning_depth: Optional[str] = "exhaustive"
