@@ -41,14 +41,19 @@ class MemoryService:
                         distance=models.Distance.COSINE
                     )
                 )
-                
-                # Créer un index sur user_id pour permettre le filtrage rapide et obligatoire
+            
+            # Vérifier/Créer l'index user_id séparément pour être sûr
+            try:
                 self.client.create_payload_index(
                     collection_name=self.COLLECTION_NAME,
                     field_name="user_id",
                     field_schema=models.PayloadSchemaType.KEYWORD,
                 )
-                logger.info(f"Payload index created for 'user_id' in {self.COLLECTION_NAME}")
+                logger.info(f"Payload index ensured for 'user_id' in {self.COLLECTION_NAME}")
+            except Exception:
+                # L'index existe probablement déjà
+                pass
+                
         except Exception as e:
             logger.error(f"Failed to ensure Qdrant collection or index: {e}")
 

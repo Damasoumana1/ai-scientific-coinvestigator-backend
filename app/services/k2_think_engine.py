@@ -109,12 +109,12 @@ RESEARCHER PROFILE:
                 ("user", "Analyze these documents and provide results:\n\n{context}")
             ])
 
-            # 5. Exécution de la chaîne
-            chain = prompt | llm | parser
+            # 5. Exécution de la chaîne (on enlève le parser ici pour nettoyer manuellement après)
+            chain = prompt | llm
             
             self._log_reasoning("K2_ANALYSIS", "Chain Execution", "Invoking LangChain LCEL with K2 Think V2")
             
-            k2_analysis = await chain.ainvoke({
+            response = await chain.ainvoke({
                 "past_context": past_context or "No past context.",
                 "user_profile": request.user_profile or "General researcher.",
                 "depth": request.reasoning_depth,
@@ -123,6 +123,28 @@ RESEARCHER PROFILE:
                 "format_instructions": parser.get_format_instructions(),
                 "context": context
             })
+
+            # NETTOYAGE MANUEL DU JSON (Crucial pour les modèles "Thinking")
+            raw_content = response.content
+            
+            # Supprimer les balises de réflexion (<think>, <think_faster>, etc.)
+            import re
+            content_no_think = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
+            
+            # Extraire le bloc JSON entre les premières et dernières accolades
+            json_match = re.search(r'(\{.*\})', content_no_think, re.DOTALL)
+            if json_match:
+                clean_json = json_match.group(1)
+            else:
+                # Fallback : suppression des blocs de code markdown
+                clean_json = content_no_think.replace("```json", "").replace("```", "").strip()
+
+            try:
+                k2_analysis = parser.parse(clean_json)
+            except Exception as e:
+                logger.error(f"Failed to parse cleaned JSON: {e}")
+                logger.debug(f"Raw content was: {raw_content}")
+                raise e
 
             # 6. Conversion en schémas internes
             comparative_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
