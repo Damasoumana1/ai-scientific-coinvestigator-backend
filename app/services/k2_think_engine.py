@@ -34,6 +34,9 @@ class K2ThinkEngine:
         
         self.audit_logs: List[AuditLog] = []
         self.reasoning_trace: List[Dict[str, Any]] = []
+        
+        from app.services.memory_service import MemoryService
+        self.memory_service = MemoryService()
     
     async def process_analysis_request(
         self,
@@ -98,9 +101,22 @@ class K2ThinkEngine:
 
             density_instruction = "Use compact, dense bullet points." if request.info_density == "compact" else "Use comfortable, explanatory paragraphs where needed."
 
+            # ============ LONG-TERM SEMANTIC MEMORY ============
+            past_context_instruction = ""
+            if request.user_id:
+                # Search for past memories related to the document titles/content
+                query = f"Research related to: {', '.join([d.title for d in request.documents[:3]])}"
+                memories = await self.memory_service.search_memory(request.user_id, query)
+                
+                if memories:
+                    logger.info(f"K2 Think: Retrieved {len(memories)} past memories for user {request.user_id}")
+                    memories_text = "\n- ".join(memories)
+                    past_context_instruction = f"\n\nPAST RESEARCH CONTEXT & PREFERENCES (Your memory of this researcher):\n- {memories_text}"
+
             system_prompt = f"""You are the K2 Think V2 Scientific Co-Investigator. 
 Your core capability and primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
 Do NOT just summarize individual papers. You MUST cross-reference, compare, and contrast the provided documents to uncover deeper strategic insights.
+{past_context_instruction}
 
 REASONING GUIDELINES:
 - DEPTH: {depth_instruction}
@@ -204,6 +220,20 @@ OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this stru
             )
             
             logger.info(f"Analysis {request_id} completed successfully")
+            
+            # ============ MEMORY CONSOLIDATION ============
+            if request.user_id:
+                try:
+                    # Determine project_id (this might need to be passed in the request or handled by orchestration)
+                    # For now we use a generic placeholder if not available
+                    await self.memory_service.consolidate_analysis(
+                        user_id=request.user_id,
+                        project_id="auto_consolidation",
+                        analysis_result=result
+                    )
+                except Exception as mem_err:
+                    logger.error(f"Failed to consolidate memory: {mem_err}")
+                    
             return result
             
         except Exception as e:
@@ -217,7 +247,8 @@ OUTPUT FORMAT: You MUST respond ONLY with a valid JSON object matching this stru
         self,
         message: str,
         analysis_context: Optional[Dict[str, Any]] = None,
-        history: List[Dict[str, str]] = []
+        history: List[Dict[str, str]] = [],
+        user_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Discussion interactive avec K2 Think sur l'analyse
@@ -234,6 +265,13 @@ Your goal:
 
 Keep your tone professional, strategic, and scientifically rigorous.
 """
+        # ============ LONG-TERM SEMANTIC MEMORY (CHAT) ============
+        if user_id:
+            memories = await self.memory_service.search_memory(user_id, message)
+            if memories:
+                memories_text = "\n- ".join(memories)
+                system_prompt += f"\n\nPAST USER CONTEXT (Relevant to this query):\n- {memories_text}"
+
         messages = [{"role": "system", "content": system_prompt}]
         
         # Add history

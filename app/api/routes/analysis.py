@@ -74,6 +74,7 @@ async def start_project_analysis(
         if not current_user.id.hex.startswith("0000"):
             user_repo.deduct_credits(current_user, 50)
             
+        request.user_id = str(current_user.id)
         target_project_id = project_id
         
         # If project_id is the "nil" UUID from frontend, use/create a real project for history
@@ -279,6 +280,7 @@ async def get_specific_analysis(
             engine = K2ThinkEngine()
             k2_request = K2AnalysisRequest(
                 documents=docs,
+                user_id=str(current_user.id),
                 reasoning_depth=depth,
                 ethics_rigor=rigor,
                 info_density=density
@@ -366,7 +368,8 @@ async def scientific_chat(
         result = await engine.chat(
             message=request.message,
             analysis_context=context,
-            history=request.history or []
+            history=request.history or [],
+            user_id=str(current_user.id)
         )
         # Update credits in result
         if isinstance(result, ChatResponse):
