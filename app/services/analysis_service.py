@@ -115,11 +115,23 @@ class AnalysisService:
                         logger.error(f"Failed to fetch/save remote paper {pid}: {fetch_err}")
 
                 if paper:
+                    # Convert authors string to list
+                    author_list = [a.strip() for a in paper.authors.split(",")] if paper.authors else ["Unknown"]
+                    
+                    # Determine document type based on remote_id prefix
+                    dtype = "custom"
+                    if paper.remote_id:
+                        if "pubmed_" in paper.remote_id: dtype = "pubmed"
+                        elif "arxiv_" in paper.remote_id or "." in paper.remote_id: dtype = "arxiv"
+                        else: dtype = "arxiv" # default for most research platforms
+
                     docs.append(ScientificDocument(
                         id=str(paper.id),
                         title=paper.title,
+                        authors=author_list,
                         abstract=paper.summary or "",
                         content=paper.summary or "", 
+                        document_type=dtype,
                         url=paper.pdf_path or ""
                     ))
 
