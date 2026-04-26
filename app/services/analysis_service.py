@@ -158,12 +158,12 @@ class AnalysisService:
             engine = K2ThinkEngine()
             result = await engine.process_analysis_request(k2_req)
 
-            # 4. Save Reasoning Trace
+            # 4. Save Reasoning Trace (Detailed audit log)
             trace = ReasoningTrace(
                 analysis_id=UUID(analysis_id),
-                trace_data=json.dumps(result.reasoning_trace),
-                final_conclusion=result.reasoning_summary,
-                tokens_used=0 
+                step_number=1,
+                reasoning=result.reasoning_summary or "Analysis complete",
+                source_chunks=result.reasoning_trace # JSON field
             )
             db.add(trace)
             
