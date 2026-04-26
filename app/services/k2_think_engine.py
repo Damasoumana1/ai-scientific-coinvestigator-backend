@@ -138,23 +138,26 @@ RESEARCHER PROFILE:
             import re
             import json
 
-            logger.info(f"K2 RAW RESPONSE (len={len(raw_content)}): {raw_content[:200]}...")
-
             # Supprimer les réflexions
             content = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
             
+            logger.info(f"K2 RAW RESPONSE (len={len(raw_content)}): {raw_content[:200]}...")
+
             clean_json = ""
             
-            # Tenter de trouver le bloc JSON entre [RESULT] et [/RESULT]
-            tag_match = re.search(r'\[RESULT\](.*?)\[/RESULT\]', content, re.DOTALL)
+            # 1. Tentative d'extraction via les balises [RESULT]
+            tag_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*\[/RESULT\]', content, re.DOTALL)
+            if not tag_match:
+                tag_match = re.search(r'\[RESULT\](.*?)\[/RESULT\]', content, re.DOTALL)
+            
             if tag_match:
                 clean_json = tag_match.group(1).strip()
-            
-            if not clean_json:
-                # Sinon, on cherche le dernier bloc commençant par { et finissant par }
-                all_blocks = re.findall(r'(\{.*\})', content, re.DOTALL)
-                if all_blocks:
-                    clean_json = all_blocks[-1]
+            else:
+                # 2. Si pas de balises, on cherche le dernier bloc JSON valide { ... }
+                # On utilise une regex non-gourmande pour éviter de capturer du texte entre deux blocs
+                all_json_blocks = re.findall(r'(\{.*?\})', content, re.DOTALL)
+                if all_json_blocks:
+                    clean_json = all_json_blocks[-1]
                 else:
                     # Recherche manuelle par index (plus robuste si regex s'emmêle)
                     start_idx = content.find('{')
@@ -166,7 +169,8 @@ RESEARCHER PROFILE:
                 logger.error(f"No JSON block found in content: {content[:100]}...")
                 raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
 
-            # RÉPARATEUR DE JSON (Common LLM errors)
+            # 3. Nettoyage final des résidus de Markdown et erreurs LLM communes
+            clean_json = clean_json.replace("```json", "").replace("```", "").strip()
             clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
             clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
 
