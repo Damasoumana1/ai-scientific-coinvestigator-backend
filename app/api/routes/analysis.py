@@ -1,7 +1,8 @@
 """
 Routes analyses K2 Think
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Response, FileResponse
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
 from app.services.analysis_service import AnalysisService
