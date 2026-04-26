@@ -102,12 +102,13 @@ class AnalysisService:
                         
                         if remote_data:
                             p_info = remote_data[0]
+                            snippet = p_info.get("content", p_info.get("summary", ""))[:10000]
                             paper = ResearchPaper(
                                 project_id=project_id,
                                 remote_id=pid,
                                 title=p_info.get("title", "Unknown"),
                                 authors=", ".join(p_info.get("authors", [])),
-                                summary=p_info.get("summary", ""),
+                                summary=snippet,
                                 publication_year=datetime.now().year # Fallback
                             )
                             db.add(paper)
@@ -135,7 +136,7 @@ class AnalysisService:
                         title=paper.title,
                         authors=author_list,
                         abstract=paper.summary or "",
-                        content=paper.summary or "", 
+                        content=(paper.summary or "")[:10000], 
                         document_type=dtype,
                         url=paper.pdf_path or ""
                     ))

@@ -62,14 +62,14 @@ class K2ThinkEngine:
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
                 temperature=0.7,
-                max_tokens=4096,
+                max_tokens=8192,
                 max_retries=3 
             )
 
             # 2. Préparation du contexte documentaire
             context_parts = []
             for doc in request.documents:
-                snippet = doc.content[:30000]
+                snippet = doc.content[:10000]
                 first_author = doc.authors[0].split()[-1] if doc.authors else "Unknown"
                 year = "n.d."
                 citation_key = f"({first_author}, {year})"
@@ -87,6 +87,7 @@ class K2ThinkEngine:
             # 4. Définition du Prompt Système
             system_template = """You are the K2 Think V2 Scientific Co-Investigator.
 Your primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
+Keep your reasoning process efficient and focused. Proceed to the [RESULT] JSON block as soon as you have synthesized the core findings.
 
 IMPORTANT: Your internal reasoning (thoughts) should be contained within <think></think> tags.
 
