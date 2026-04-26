@@ -87,22 +87,42 @@ class K2ThinkEngine:
 
             parser = JsonOutputParser()
             
-            # 4. Prompt ultra-direct pour éviter la narration
-            instruction_prompt = f"""[INSTRUCTION]
-Analyze the following documents and output a VALID JSON object.
-- NO placeholders like "..." or "etc."
-- FILL all fields with REAL DATA from the documents.
-- Use the exact JSON schema provided.
-- Wrap result in [RESULT] and [/RESULT] tags.
+            # 4. Prompt autoritaire pour éviter la paresse (Laziness)
+            instruction_prompt = f"""[SCIENTIFIC MISSION]
+Perform an EXHAUSTIVE and DETAILED comparative analysis of the attached documents.
+CRITICAL RULES:
+- NEVER use placeholders like "...", "etc.", or "[TBD]".
+- EVERY field in the JSON must contain at least 2-3 sentences of technical content extracted from the documents.
+- Use the specific citation keys provided (e.g., (Author, Year)).
+- Your output must be a single, complete, and valid JSON object exactly matching the schema below.
+- Do NOT output formatting like `... JSON ...` literally. You must generate the full JSON.
 
-[SCHEMA]
-{parser.get_format_instructions()}
-
-[DOCUMENTS]
+[DOCUMENTS TO ANALYZE]
 {context}
 
-[PAST CONTEXT]
-{past_context or "No past context."}
+[REQUIRED SCHEMA]
+You must return a JSON object with the following structure:
+{{
+  "reasoning_summary": "Detailed summary",
+  "confidence_score": 0.85,
+  "divergences": [ {{"variable": "var", "finding_a": "A", "finding_b": "B", "impact": "impact"}} ],
+  "contradictions": [ {{"topic": "topic", "conflict": "conflict", "resolution_path": "path"}} ],
+  "common_findings": ["finding 1", "finding 2"],
+  "research_gaps": [ {{"description": "gap", "importance_score": 0.9, "related_variables": ["v1"], "suggested_investigation": "investigation", "source_documents": ["doc_id"], "citations": ["cit"]}} ],
+  "counter_hypotheses": [ {{"hypothesis": "hyp", "rationale": "rat", "potential_bias": "bias", "validation_experiment": "exp", "confidence_against": 0.8, "citations": ["cit"]}} ],
+  "protocol": {{
+    "title": "Protocol title", "hypothesis": "hyp", "objective": "obj", "expected_outcomes": "outcomes",
+    "statistical_analysis_plan": "plan", "success_criteria": ["crit"], "estimated_duration_days": 30.0,
+    "estimated_budget_usd": 10000.0, "resource_optimization": "opt", "material_constraints": "const",
+    "alternative_approaches": ["alt"], "risk_assessment": {{"risk": "mitigation"}},
+    "variables": [ {{"name": "v", "type": "independent", "measurement_unit": "unit", "measurement_method": "method", "possible_values": ["val"]}} ],
+    "steps": [ {{"description": "step", "duration_hours": 2.5, "materials": ["mat"], "critical_parameters": ["param"], "validation_criteria": "crit", "risk_level": "medium", "contingency_plan": "plan"}} ]
+  }},
+  "recommendations": ["rec 1"]
+}}
+
+[FINAL OUTPUT STEP]
+Generate your internal reasoning in <think> tags first, then output the final JSON between [RESULT] and [/RESULT].
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
@@ -173,12 +193,17 @@ Analyze the following documents and output a VALID JSON object.
                 k2_analysis = json.loads(clean_json)
             except Exception as e:
                 logger.error(f"JSON.LOADS failed: {e}")
-                # Tentative ultime : nettoyage markdown
+                # Tentative ultime : nettoyage markdown et correction d'erreurs courantes LLM
                 try:
                     clean_json_fixed = clean_json.replace("```json", "").replace("```", "").strip()
+                    # Fix single quotes around keys: {'key': ...} -> {"key": ...}
+                    clean_json_fixed = re.sub(r"([{,]\s*)'([^']+)'(\s*:)", r'\1"\2"\3', clean_json_fixed)
+                    # Fix unquoted keys: {key: ...} -> {"key": ...}
+                    clean_json_fixed = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', clean_json_fixed)
+                    # Try to parse again
                     k2_analysis = json.loads(clean_json_fixed)
-                except:
-                    logger.error(f"All JSON parsing attempts failed. Cleaned JSON was: {clean_json[:200]}...")
+                except Exception as e2:
+                    logger.error(f"All JSON parsing attempts failed. Error: {e2}. Cleaned JSON was: {clean_json[:500]}...")
                     raise e
 
             # 6. Conversion en schémas internes
