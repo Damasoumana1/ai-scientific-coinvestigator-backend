@@ -52,7 +52,7 @@ class AnalysisService:
         """Tâche de fond pour traiter l'analyse"""
         from app.services.k2_think_engine import K2ThinkEngine
         from app.db.repositories.paper_repo import PaperRepository
-        from app.models.schemas import K2AnalysisRequest, ScientificDocument
+        from app.models.schemas import AnalysisRequest as K2AnalysisRequest, ScientificDocument
         from app.db.models.reasoning_trace import ReasoningTrace
         
         db = self.analysis_repo.db
