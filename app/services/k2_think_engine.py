@@ -85,50 +85,45 @@ class K2ThinkEngine:
                 if memories:
                     past_context = "\n- ".join(memories)
 
-            system_template = """You are the K2 Think V2 Scientific Expert.
-CORE MISSION: Multi-document synthesis and strategic research design.
-
-FORMAT RULES:
-1. Start your response with <think> to detail your internal reasoning.
-2. End your response with a SINGLE JSON object containing the results.
-3. Wrap the JSON object between [RESULT] and [/RESULT] tags.
-
-STRICT JSON SCHEMA:
-{format_instructions}
-
-Keep your thinking focused. Do not repeat the prompt. Proceed to the JSON as soon as possible.
-
-PAST RESEARCH CONTEXT:
-{past_context}
-
-RESEARCHER PROFILE:
-{user_profile}
-"""
-            
-            # Re-ajouter les instructions de formatage spécifiques au JsonOutputParser
-            system_template += "\n{format_instructions}\n"
-            
             parser = JsonOutputParser()
             
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", system_template),
-                ("user", "Analyze these documents and provide results:\n\n{context}")
-            ])
+            # 4. Prompt ultra-direct pour éviter la narration
+            instruction_prompt = f"""[INSTRUCTION]
+Analyze the following documents and output a VALID JSON object.
+- NO placeholders like "..." or "etc."
+- FILL all fields with REAL DATA from the documents.
+- Use the exact JSON schema provided.
+- Wrap result in [RESULT] and [/RESULT] tags.
 
-            # 5. Exécution de la chaîne (on enlève le parser ici pour nettoyer manuellement après)
-            chain = prompt | llm
-            
+[SCHEMA]
+{parser.get_format_instructions()}
+
+[DOCUMENTS]
+{context}
+
+[PAST CONTEXT]
+{past_context or "No past context."}
+"""
+
+            # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
+            chat = ChatOpenAI(
+                model="MBZUAI-IFM/K2-Think-v2",
+                openai_api_key=settings.K2_THINK_API_KEY,
+                openai_api_base=settings.K2_THINK_API_URL,
+                temperature=0,
+                max_tokens=8192,
+                timeout=300,
+                max_retries=3 
+            )
+
+            logger.info("Sending command-style request to K2 Think...")
             self._log_reasoning("K2_ANALYSIS", "Chain Execution", "Invoking LangChain LCEL with K2 Think V2")
             
-            response = await chain.ainvoke({
-                "past_context": past_context or "No past context.",
-                "user_profile": request.user_profile or "General researcher.",
-                "depth": request.reasoning_depth,
-                "ethics": request.ethics_rigor,
-                "density": request.info_density,
-                "format_instructions": parser.get_format_instructions(),
-                "context": context
-            })
+            from langchain.schema import HumanMessage, SystemMessage
+            response = await chat.ainvoke([
+                SystemMessage(content="You are a precise scientific data extractor. Speak only in JSON."),
+                HumanMessage(content=instruction_prompt)
+            ])
 
             # NETTOYAGE MANUEL DU JSON (Crucial pour les modèles "Thinking")
             raw_content = response.content
