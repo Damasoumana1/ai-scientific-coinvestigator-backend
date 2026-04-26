@@ -17,6 +17,7 @@ from app.services.k2_think_engine import K2ThinkEngine
 from app.models.schemas import ScientificDocument, AnalysisRequest as K2AnalysisRequest, DocumentType, ChatRequest, ChatResponse
 from app.services.export_service import ExportService
 from app.services.arxiv_service import ArXivService
+from app.services.openalex_service import OpenAlexService
 from fastapi.responses import Response, FileResponse
 
 router = APIRouter()
@@ -182,6 +183,27 @@ async def get_specific_analysis(
                                 continue
                         except Exception as pubmed_err:
                             logger.error(f"DEMO_REAL: PubMed download failed for {pid}: {pubmed_err}")
+                            continue
+                    elif pid.startswith("openalex_"):
+                        logger.info(f"DEMO_REAL: {pid} is OpenAlex. Attempting fetch and download...")
+                        try:
+                            openalex_service = OpenAlexService(download_dir=UPLOAD_DIR)
+                            # Fetch paper metadata to get the OA PDF URL
+                            # Extract the raw OpenAlex Work ID (e.g. W2987984220)
+                            clean_id = pid.replace("openalex_", "")
+                            search_results = openalex_service.fetch_papers(clean_id, max_results=1)
+                            if search_results and search_results[0].get("url"):
+                                file_to_process = openalex_service.download_paper(
+                                    search_results[0]["url"], pid
+                                )
+                                if not file_to_process:
+                                    logger.error(f"DEMO_REAL: OpenAlex download returned empty path for {pid}")
+                                    continue
+                            else:
+                                logger.error(f"DEMO_REAL: No OA PDF URL found for OpenAlex {pid}")
+                                continue
+                        except Exception as oa_err:
+                            logger.error(f"DEMO_REAL: OpenAlex download failed for {pid}: {oa_err}")
                             continue
                     else:
                         # ArXiv ID (Standard)
