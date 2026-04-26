@@ -62,7 +62,7 @@ class K2ThinkEngine:
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
                 temperature=0,
-                max_tokens=8192,
+                max_tokens=None,
                 timeout=300,
                 max_retries=3 
             )
@@ -122,7 +122,7 @@ You must return a JSON object with the following structure:
 }}
 
 [FINAL OUTPUT STEP]
-Generate your internal reasoning in <think> tags first (KEEP IT VERY BRIEF, MAX 200 WORDS, to avoid token limits), then output the final JSON between [RESULT] and [/RESULT]. Do not truncate the JSON.
+CRITICAL: Do NOT write a long <think> block. You MUST prioritize generating the JSON. If possible, skip the <think> tags completely and just output the JSON between [RESULT] and [/RESULT]. Do not truncate the JSON.
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
@@ -131,7 +131,7 @@ Generate your internal reasoning in <think> tags first (KEEP IT VERY BRIEF, MAX 
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
                 temperature=0,
-                max_tokens=8192,
+                max_tokens=None,
                 timeout=300,
                 max_retries=3 
             )
