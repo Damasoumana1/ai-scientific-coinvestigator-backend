@@ -79,6 +79,14 @@ async def lifespan(app: FastAPI):
                 with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
                     ddl_conn.execute(text("ALTER TABLE research_papers ADD COLUMN summary TEXT"))
                 logger.info("Added 'summary' column to research_papers table.")
+
+            # Check if 'result_data' column exists in analysis_runs
+            res_res = conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='analysis_runs' AND column_name='result_data'")).fetchone()
+            if not res_res:
+                with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as ddl_conn:
+                    # On utilise JSON pour Postgres, ou TEXT comme fallback si besoin
+                    ddl_conn.execute(text("ALTER TABLE analysis_runs ADD COLUMN result_data JSON"))
+                logger.info("Added 'result_data' column to analysis_runs table.")
     except Exception as e:
         logger.warning(f"Auto-migration warning (non-fatal): {str(e)}")
 

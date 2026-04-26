@@ -43,7 +43,7 @@ class AnalysisService:
             analysis.status = status
             analysis.completed_at = datetime.utcnow()
             if result:
-                analysis.result_data = json.dumps(result)
+                analysis.result_data = result # SQLAlchemy handles JSON serialization
             self.analysis_repo.db.add(analysis)
             self.analysis_repo.db.commit()
             self.analysis_repo.db.refresh(analysis)

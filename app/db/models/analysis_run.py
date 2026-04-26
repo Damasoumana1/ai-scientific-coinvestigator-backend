@@ -1,7 +1,7 @@
 """
 Database Models for Analysis Runs
 """
-from sqlalchemy import Column, DateTime, Text, ForeignKey, UUID
+from sqlalchemy import Column, DateTime, Text, ForeignKey, UUID, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -18,6 +18,7 @@ class AnalysisRun(Base):
     status = Column(Text)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
+    result_data = Column(JSON) # JSON blob for frontend consumption
     
     # Relationships
     project = relationship("Project", back_populates="analysis_runs")
