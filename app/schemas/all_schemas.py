@@ -24,6 +24,7 @@ class UserResponse(UserBase):
     id: uuid.UUID
     credits: int
     last_refill_date: Optional[date] = None
+    research_profile: Optional[str] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
@@ -87,6 +88,8 @@ class PaperResponse(PaperBase):
 class AnalysisRequest(BaseModel):
     analysis_type: str = "comprehensive"
     paper_ids: List[str]
+    user_id: Optional[str] = None
+    user_profile: Optional[str] = None
     reasoning_depth: Optional[str] = "exhaustive"
     ethics_rigor: Optional[str] = "standard"
     info_density: Optional[str] = "detailed"
