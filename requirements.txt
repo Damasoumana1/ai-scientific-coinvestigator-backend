@@ -27,6 +27,7 @@ aiohttp==3.9.1
 
 # Vector Database & RAG
 qdrant-client==1.17.0
+fastembed==0.3.4
 unstructured==0.11.5
 unstructured[pdf]==0.11.5
 pdf2image==1.16.3

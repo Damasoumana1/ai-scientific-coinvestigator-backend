@@ -22,6 +22,8 @@ class MemoryService:
             url=settings.VECTOR_DB_URL,
             api_key=settings.VECTOR_DB_API_KEY
         )
+        # On utilise FastEmbed pour des embeddings locaux et gratuits
+        self.client.set_model("BAAI/bge-small-en-v1.5")
         self._ensure_collection()
 
     def _ensure_collection(self):
@@ -35,7 +37,7 @@ class MemoryService:
                 self.client.create_collection(
                     collection_name=self.COLLECTION_NAME,
                     vectors_config=models.VectorParams(
-                        size=1536, # Taille standard OpenAI embeddings (text-embedding-3-small)
+                        size=384, # Taille pour BGE-small-en-v1.5
                         distance=models.Distance.COSINE
                     )
                 )
@@ -44,18 +46,8 @@ class MemoryService:
 
     async def save_memory(self, user_id: str, content: str, metadata: Dict[str, Any] = None):
         """Sauvegarde un fragment de savoir dans la mémoire sémantique"""
-        from openai import AsyncOpenAI
-        openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        
         try:
-            # 1. Générer embedding
-            response = await openai_client.embeddings.create(
-                input=content,
-                model="text-embedding-3-small"
-            )
-            embedding = response.data[0].embedding
-            
-            # 2. Upsert dans Qdrant
+            # 1. Upsert dans Qdrant avec embedding local automatique
             point_id = str(uuid.uuid4())
             payload = {
                 "user_id": user_id,
@@ -64,17 +56,15 @@ class MemoryService:
                 **(metadata or {})
             }
             
-            self.client.upsert(
+            # self.client.add gère l'embedding automatiquement grâce à set_model
+            self.client.add(
                 collection_name=self.COLLECTION_NAME,
-                points=[
-                    models.PointStruct(
-                        id=point_id,
-                        vector=embedding,
-                        payload=payload
-                    )
-                ]
+                documents=[content],
+                metadata=[payload],
+                ids=[point_id]
             )
-            logger.info(f"Memory fragment saved for user {user_id}")
+            
+            logger.info(f"Memory fragment saved for user {user_id} via Local Embeddings")
             return point_id
         except Exception as e:
             logger.error(f"Failed to save memory: {e}")
@@ -82,21 +72,11 @@ class MemoryService:
 
     async def search_memory(self, user_id: str, query: str, limit: int = 5) -> List[str]:
         """Recherche des souvenirs pertinents pour un sujet donné"""
-        from openai import AsyncOpenAI
-        openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        
         try:
-            # 1. Générer embedding de la requête
-            response = await openai_client.embeddings.create(
-                input=query,
-                model="text-embedding-3-small"
-            )
-            embedding = response.data[0].embedding
-            
-            # 2. Rechercher dans Qdrant filtré par user_id
-            search_result = self.client.search(
+            # Recherche dans Qdrant avec embedding local automatique de la query
+            search_result = self.client.query(
                 collection_name=self.COLLECTION_NAME,
-                query_vector=embedding,
+                query_text=query,
                 query_filter=models.Filter(
                     must=[
                         models.FieldCondition(
@@ -108,8 +88,11 @@ class MemoryService:
                 limit=limit
             )
             
-            memories = [hit.payload["content"] for hit in search_result if hit.score > 0.7]
+            memories = [hit.metadata["content"] for hit in search_result if hit.score > 0.6]
             return memories
+        except Exception as e:
+            logger.error(f"Failed to search memory: {e}")
+            return []
         except Exception as e:
             logger.error(f"Failed to search memory: {e}")
             return []
