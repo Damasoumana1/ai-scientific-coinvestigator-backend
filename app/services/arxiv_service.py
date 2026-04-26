@@ -17,8 +17,13 @@ class ArXivService:
         Search ArXiv for papers (Metadata only).
         """
         logger.info(f"Searching ArXiv for: {query} (max: {max_results})")
+        
+        # Check if query looks like an ArXiv ID to use id_list (more reliable)
+        is_id = "." in query or "/" in query
+        
         search = arxiv.Search(
-            query=query,
+            query="" if is_id else query,
+            id_list=[query] if is_id else [],
             max_results=max_results,
             sort_by=arxiv.SortCriterion.Relevance
         )

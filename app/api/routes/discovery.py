@@ -92,6 +92,7 @@ async def discovery_search(request: SearchRequest, db: Session = Depends(get_db)
         arxiv_data = arxiv_service.fetch_papers(request.query, request.max_results)
         for p in arxiv_data:
             p["source"] = "ArXiv"
+            p["id"] = f"arxiv_{p['id']}" # Uniformize with prefixes
             p["has_pdf"] = True  # ArXiv always has PDF
 
         # 2. Fetch from DOAJ

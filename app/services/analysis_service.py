@@ -94,7 +94,10 @@ class AnalysisService:
                             svc = PubMedService(); remote_data = svc.fetch_papers(pid.replace("pubmed_", ""), 1)
                         elif "openalex_" in pid:
                             svc = OpenAlexService(); remote_data = svc.fetch_papers(pid.replace("openalex_", ""), 1)
+                        elif "arxiv_" in pid:
+                            svc = ArXivService(); remote_data = svc.fetch_papers(pid.replace("arxiv_", ""), 1)
                         else:
+                            # Fallback to ArXiv if no prefix (for old saved papers without prefix)
                             svc = ArXivService(); remote_data = svc.fetch_papers(pid, 1)
                         
                         if remote_data:
@@ -111,6 +114,8 @@ class AnalysisService:
                             db.commit()
                             db.refresh(paper)
                             logger.info(f"Saved remote paper {pid} to project {project_id}")
+                        else:
+                            logger.warning(f"No remote data found for {pid}")
                     except Exception as fetch_err:
                         logger.error(f"Failed to fetch/save remote paper {pid}: {fetch_err}")
 
