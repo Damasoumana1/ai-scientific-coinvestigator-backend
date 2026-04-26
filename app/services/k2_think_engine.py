@@ -88,9 +88,14 @@ class K2ThinkEngine:
             system_template = """You are the K2 Think V2 Scientific Co-Investigator.
 Your primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
 
-IMPORTANT: Your internal reasoning (thoughts) should be contained within <think></think> tags. 
-However, your FINAL output MUST be a single, valid JSON object and NOTHING else. 
-Do not include conversational filler outside the JSON.
+IMPORTANT: Your internal reasoning (thoughts) should be contained within <think></think> tags.
+
+OUTPUT RULES:
+- After your reasoning, you MUST output a SINGLE valid JSON object.
+- Wrap your final JSON object between [RESULT] and [/RESULT] tags.
+- DO NOT add any markdown formatting (like ```json) or conversational text outside the tags.
+- The JSON must strictly follow the schema provided below.
+- CRITICAL: Stop immediately after the [/RESULT] tag. Do not write anything else!
 
 PAST RESEARCH CONTEXT:
 {past_context}
@@ -127,28 +132,47 @@ RESEARCHER PROFILE:
             # NETTOYAGE MANUEL DU JSON (Crucial pour les modèles "Thinking")
             raw_content = response.content
             
-            # Supprimer les balises de réflexion (<think>, <think_faster>, etc.)
+            # 5. NETTOYAGE ET RÉPARATION DU JSON
+            raw_content = response.content
             import re
-            content_no_think = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
-            
-            # Extraction chirurgicale du bloc JSON
-            # On cherche le PREMIER '{' et le DERNIER '}'
-            start_idx = content_no_think.find('{')
-            end_idx = content_no_think.rfind('}')
-            
-            if start_idx != -1 and end_idx != -1:
-                clean_json = content_no_think[start_idx:end_idx + 1]
-            else:
-                clean_json = content_no_think.replace("```json", "").replace("```", "").strip()
+            import json
 
-            # Parser le JSON nettoyé avec le module JSON standard
+            # Supprimer les réflexions
+            content = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
+            
+            # Tenter de trouver le bloc JSON entre [RESULT] et [/RESULT] si l'IA a suivi la consigne
+            tag_match = re.search(r'\[RESULT\](.*?)\[/RESULT\]', content, re.DOTALL)
+            if tag_match:
+                clean_json = tag_match.group(1).strip()
+            else:
+                # Sinon, on cherche le dernier bloc commençant par { et finissant par }
+                # On utilise une recherche non-gloutonne mais on prend le dernier match
+                all_blocks = re.findall(r'(\{.*\})', content, re.DOTALL)
+                clean_json = all_blocks[-1] if all_blocks else content
+
+            # RÉPARATEUR DE JSON (Common LLM errors)
+            # 1. Supprimer les commentaires style // ou #
+            clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
+            # 2. Remplacer les guillemets simples par des doubles (si ce ne sont pas des apostrophes)
+            # (Approximation simple mais souvent efficace pour les clés)
+            # clean_json = clean_json.replace("'", '"') # Trop risqué pour le texte
+            
+            # 3. Supprimer les virgules traînantes avant un ] ou }
+            clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
+
             try:
-                import json
                 k2_analysis = json.loads(clean_json)
             except Exception as e:
-                logger.error(f"Failed to parse cleaned JSON: {e}")
-                logger.debug(f"Cleaned JSON was: {clean_json}")
-                raise e
+                logger.error(f"JSON.LOADS failed: {e}")
+                # Tentative désespérée : parse_json_markdown (si on peut l'émuler)
+                try:
+                    # Remplacement manuel des backticks markdown si présents
+                    clean_json = clean_json.replace("```json", "").replace("```", "").strip()
+                    k2_analysis = json.loads(clean_json)
+                except:
+                    logger.error("All JSON parsing attempts failed.")
+                    logger.debug(f"RAW CONTENT: {raw_content}")
+                    raise e
 
             # 6. Conversion en schémas internes
             comparative_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
