@@ -26,8 +26,8 @@ httpx==0.25.1
 aiohttp==3.9.1
 
 # Vector Database & RAG
-qdrant-client==1.17.0
-fastembed==0.3.4
+qdrant-client[fastembed]==1.17.0
+fastembed
 pdf2image==1.16.3
 pillow==10.3.0
 pypdf==3.17.1
