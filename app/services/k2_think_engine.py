@@ -141,11 +141,10 @@ RESEARCHER PROFILE:
             else:
                 clean_json = content_no_think.replace("```json", "").replace("```", "").strip()
 
-            # Parser le JSON nettoyé
+            # Parser le JSON nettoyé avec le module JSON standard
             try:
-                # On utilise un parseur de LangChain qui gère mieux les petits défauts
-                from langchain_core.utils.json import parse_json_markdown
-                k2_analysis = parse_json_markdown(clean_json)
+                import json
+                k2_analysis = json.loads(clean_json)
             except Exception as e:
                 logger.error(f"Failed to parse cleaned JSON: {e}")
                 logger.debug(f"Cleaned JSON was: {clean_json}")
