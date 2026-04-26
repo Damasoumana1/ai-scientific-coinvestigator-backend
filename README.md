@@ -10,88 +10,81 @@ pinned: false
 
 # 🧪 AI Scientific Co-Investigator: Deep Reasoning for Research
 
-**Detect research contradictions, generate novel hypotheses, and design rigorous protocols using deep reasoning.**
+**Detect research contradictions, generate novel hypotheses, and design rigorous protocols using deep reasoning and persistent semantic memory.**
 
-Scientific research is often hindered by the massive volume of existing literature. Researchers spend up to 60% of their time searching for contradictions, identifying gaps, and designing experiments. **AI Scientific Co-Investigator** automates this pipeline using advanced reasoning models and sophisticated orchestration.
+Scientific research is often hindered by the massive volume of existing literature. Researchers spend up to 60% of their time searching for contradictions, identifying gaps, and designing experiments. **AI Scientific Co-Investigator** automates this pipeline using the advanced **K2 Think V2 Engine** and sophisticated semantic orchestration.
 
 ---
 
 ## 🚀 Key Features
 
-### 🔍 1. Contradiction Detection
-- Analyzes semantic meaning across multiple documents.
-- Identifies conflicting findings or methodologies humans might overlook.
-- Provides confidence scoring for each detected contradiction.
+### 🧠 1. Long-Term Semantic Memory (New!)
+- **Cross-Analysis Persistence:** The agent remembers past findings, user preferences, and methodological choices across different projects.
+- **Semantic Retrieval:** Automatically queries past research context from **Qdrant** to enrich new analyses.
+- **Knowledge Consolidation:** Every analysis is automatically summarized and "learned" by your co-investigator.
 
-### 💡 2. Hypothesis Generation
-- Synthesizes knowledge from disparate sources to propose novel research directions.
-- Suggests unexplored intersections between different scientific fields.
+### 📚 2. Multi-Source Discovery Sync
+- **200M+ Articles:** Real-time integration with **ArXiv, PubMed, DOAJ, and OpenAlex**.
+- **Unified Search:** Search across all major scientific databases from a single interface.
+- **Citation Intelligence:** Displays citation counts and impact metrics directly in search results.
 
-### 📋 3. Protocol Design
-- Generates rigorous, step-by-step experimental protocols.
-- Identifies potential risks and suggests mitigation strategies.
-- Optimizes resource allocation for more efficient research.
+### 🔍 3. Contradiction Detection
+- **Multi-Document Reasoning:** Analyzes semantic meaning across multiple PDFs/Articles.
+- **Conflict Identification:** Flags where Paper A disagrees with Paper B on findings or metrics.
+- **Resolution Paths:** Suggests how to resolve scientific conflicts through new experiments.
 
-### 🛡️ 4. Self-Consistency Layer
-- Employs a multi-step reasoning process (orchestrated via LangGraph).
-- Generates multiple versions of analysis and independently evaluates them.
-- Selects the most robust and consistent findings for the final report.
+### 📋 4. Protocol Design & Optimization
+- **Step-by-Step Synthesis:** Generates complete experimental protocols from scratch.
+- **Resource Aware:** Optimizes plans for hardware (NVIDIA GPUs), budget, and time constraints.
+- **Risk Audit:** Identifies safety/ethics risks and suggests mitigation strategies.
 
-### 📜 5. Full Audit Trail
-- Every decision and reasoning step is logged for transparency.
-- Ensures reproducibility, a cornerstone of scientific integrity.
-
-### 📚 6. Real-Time Literature Search
-- Seamless integration with the **ArXiv API**.
-- Fetch and analyze the latest scientific papers in real-time.
-- Automatically incorporate live research data into the deep reasoning pipeline.
+### 🛡️ 5. Ethical & Rigorous Auditing
+- **Clinical Rigor:** Built-in checks for clinical safety and academic integrity.
+- **Reasoning Traces:** Full "Chain of Thought" visibility for every AI decision.
+- **Grant-Ready Exports:** Export findings directly to **LaTeX** for grant proposals.
 
 ---
 
 ## 🛠️ Technical Architecture
 
-The platform uses a modern, high-performance stack designed for scalability and reliability:
+The platform uses a state-of-the-art stack designed for "Scientific Reasoning" depth:
 
 ```mermaid
 graph TD
     A[Frontend: Next.js] --> B[API: FastAPI]
-    B --> C[Orchestrator: LangGraph]
-    C --> D[Reasoning Engine: K2 Think V2 / LLMs]
-    D --> E[Vector DB: Qdrant]
+    B --> C[Orchestrator: K2 Logic]
+    C --> D[Reasoning Engine: K2 Think V2]
+    D --> E[Semantic Memory: Qdrant Vector DB]
     D --> F[Relational DB: PostgreSQL / Supabase]
-    C --> G[Task Queue: Celery + Redis]
+    C --> G[Global Discovery: OpenAlex/PubMed/ArXiv]
+    D --> H[Export: LaTeX / CSV / PDF]
 ```
 
 ### Tech Stack
 - **Backend:** [FastAPI](https://fastapi.tiangolo.com/) (Python)
-- **Orchestration:** [LangGraph](https://www.langchain.com/langgraph)
-- **Vector Search:** [Qdrant](https://qdrant.tech/) (Semantic similarity)
-- **Relational Database:** [PostgreSQL](https://www.postgresql.org/) ([Supabase](https://supabase.com/))
-- **Cache/Broker:** [Redis](https://redis.io/) ([Upstash](https://upstash.com/))
+- **AI Core:** **K2 Think V2** (Deep Reasoning API)
+- **Vector Intelligence:** [Qdrant](https://qdrant.tech/) (Semantic Memory & RAG)
+- **Database:** [PostgreSQL](https://www.postgresql.org/) ([Supabase](https://supabase.com/))
+- **Discovery APIs:** OpenAlex, PubMed, ArXiv, DOAJ
 - **Containerization:** [Docker](https://www.docker.com/)
-- **Hosting / Deployment:** **[Hugging Face Spaces](https://huggingface.co/spaces)**
+- **Hosting:** **[Hugging Face Spaces](https://huggingface.co/spaces)**
 
 ---
 
-## ⚙️ Deployment
-
-This backend is fully containerized and currently **deployed on Hugging Face Spaces** for robust, scalable hosting.
-
-### Prerequisites
-- **Supabase**: Relational Database setup.
-- **Qdrant Cloud**: Vector Database instance.
-- **Upstash**: Redis instance for Celery tasks.
+## ⚙️ Deployment & Config
 
 ### Environment Variables
-The following secrets are required:
+The following secrets are required on Hugging Face Spaces:
 - `DATABASE_URL`: Supabase connection string.
 - `SECRET_KEY`: Secure random string for JWT.
-- `K2_THINK_API_KEY`: K2 Think V2 API key for deep reasoning.
-- `QDRANT_URL` & `QDRANT_API_KEY`: Connectivity to Qdrant.
-- `CELERY_BROKER_URL`: Upstash Redis URL.
+- `K2_THINK_API_KEY`: K2 Think V2 API key.
+- `VECTOR_DB_URL` & `VECTOR_DB_API_KEY`: Connectivity to Qdrant Cloud.
+- `OPENAI_API_KEY`: For semantic embeddings.
+- `FRONTEND_URL`: For OAuth redirect synchronization.
 
 ---
 
 ## 📄 Ownership & License
 
 This project is the intellectual property of **[Soumana Dama](https://www.linkedin.com/in/soumana-dama-445096253/)** ([GitHub Profile](https://github.com/Damasoumana1)). All rights reserved.
+Developed for the **AI Scientific Innovation Hackathon**.
