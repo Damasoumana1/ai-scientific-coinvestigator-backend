@@ -59,7 +59,14 @@ class AnalysisService:
         try:
             # 1. Fetch papers from DB
             paper_repo = PaperRepository(db)
-            db_papers = [paper_repo.get_by_id(pid) for pid in request.paper_ids]
+            paper_uuids = []
+            for pid in request.paper_ids:
+                try:
+                    paper_uuids.append(UUID(pid) if isinstance(pid, str) else pid)
+                except ValueError:
+                    continue
+            
+            db_papers = [paper_repo.get_by_id(pid) for pid in paper_uuids]
             
             docs = []
             for p in db_papers:
@@ -100,7 +107,14 @@ class AnalysisService:
             db.commit()
 
         except Exception as e:
+            db.rollback() # CLEAN TRANSACTION
             from app.core.logging import logger
-            logger.error(f"Background analysis error for {analysis_id}: {e}")
-            self.complete_analysis(UUID(analysis_id), status="FAILED")
-            db.commit()
+            import traceback
+            logger.error(f"Background analysis error for {analysis_id}: {str(e)}")
+            logger.error(traceback.format_exc())
+            try:
+                self.complete_analysis(UUID(analysis_id), status="FAILED")
+                db.commit()
+            except Exception as final_err:
+                logger.error(f"Failed to even mark analysis as FAILED: {final_err}")
+                db.rollback()
