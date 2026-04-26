@@ -61,8 +61,9 @@ class K2ThinkEngine:
                 model="MBZUAI-IFM/K2-Think-v2",
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0.7,
+                temperature=0,
                 max_tokens=8192,
+                timeout=300,
                 max_retries=3 
             )
 
@@ -84,19 +85,18 @@ class K2ThinkEngine:
                 if memories:
                     past_context = "\n- ".join(memories)
 
-            # 4. Définition du Prompt Système
-            system_template = """You are the K2 Think V2 Scientific Co-Investigator.
-Your primary directive is MULTI-DOCUMENT REASONING and KNOWLEDGE SYNTHESIS.
-Keep your reasoning process efficient and focused. Proceed to the [RESULT] JSON block as soon as you have synthesized the core findings.
+            system_template = """You are the K2 Think V2 Scientific Expert.
+CORE MISSION: Multi-document synthesis and strategic research design.
 
-IMPORTANT: Your internal reasoning (thoughts) should be contained within <think></think> tags.
+FORMAT RULES:
+1. Start your response with <think> to detail your internal reasoning.
+2. End your response with a SINGLE JSON object containing the results.
+3. Wrap the JSON object between [RESULT] and [/RESULT] tags.
 
-OUTPUT RULES:
-- After your reasoning, you MUST output a SINGLE valid JSON object.
-- Wrap your final JSON object between [RESULT] and [/RESULT] tags.
-- DO NOT add any markdown formatting (like ```json) or conversational text outside the tags.
-- The JSON must strictly follow the schema provided below.
-- CRITICAL: Stop immediately after the [/RESULT] tag. Do not write anything else!
+STRICT JSON SCHEMA:
+{format_instructions}
+
+Keep your thinking focused. Do not repeat the prompt. Proceed to the JSON as soon as possible.
 
 PAST RESEARCH CONTEXT:
 {past_context}
