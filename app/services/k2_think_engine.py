@@ -131,19 +131,24 @@ RESEARCHER PROFILE:
             import re
             content_no_think = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
             
-            # Extraire le bloc JSON entre les premières et dernières accolades
-            json_match = re.search(r'(\{.*\})', content_no_think, re.DOTALL)
-            if json_match:
-                clean_json = json_match.group(1)
+            # Extraction chirurgicale du bloc JSON
+            # On cherche le PREMIER '{' et le DERNIER '}'
+            start_idx = content_no_think.find('{')
+            end_idx = content_no_think.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1:
+                clean_json = content_no_think[start_idx:end_idx + 1]
             else:
-                # Fallback : suppression des blocs de code markdown
                 clean_json = content_no_think.replace("```json", "").replace("```", "").strip()
 
+            # Parser le JSON nettoyé
             try:
-                k2_analysis = parser.parse(clean_json)
+                # On utilise un parseur de LangChain qui gère mieux les petits défauts
+                from langchain_core.utils.json import parse_json_markdown
+                k2_analysis = parse_json_markdown(clean_json)
             except Exception as e:
                 logger.error(f"Failed to parse cleaned JSON: {e}")
-                logger.debug(f"Raw content was: {raw_content}")
+                logger.debug(f"Cleaned JSON was: {clean_json}")
                 raise e
 
             # 6. Conversion en schémas internes
