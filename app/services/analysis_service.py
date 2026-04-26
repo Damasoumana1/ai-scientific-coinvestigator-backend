@@ -7,7 +7,7 @@ from app.db.repositories.analysis_repo import AnalysisRepository
 from app.db.models.analysis_run import AnalysisRun
 from datetime import datetime
 import json
-
+from app.core.logging import logger
 
 class AnalysisService:
     """Service pour orchestration des analyses K2 Think"""
@@ -157,7 +157,6 @@ class AnalysisService:
 
         except Exception as e:
             db.rollback() # CLEAN TRANSACTION
-            from app.core.logging import logger
             import traceback
             logger.error(f"Background analysis error for {analysis_id}: {str(e)}")
             logger.error(traceback.format_exc())
