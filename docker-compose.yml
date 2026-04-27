@@ -11,7 +11,7 @@ services:
     environment:
       POSTGRES_DB: scoinvestigator
       POSTGRES_USER: ${POSTGRES_USER:-user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-onion123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -65,7 +65,7 @@ services:
     ports:
       - "8000:7860"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-onion123}@postgres:5432/scoinvestigator
+      DATABASE_URL: postgresql://${POSTGRES_USER:-user}:${POSTGRES_PASSWORD:-CHANGE_THIS_PASSWORD}@postgres:5432/scoinvestigator
       VECTOR_DB_URL: http://qdrant:6333
       QDRANT_API_KEY: ${QDRANT_API_KEY:-your-secret-key}
       CELERY_BROKER_URL: redis://redis:6379/0
@@ -73,7 +73,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       K2_THINK_API_KEY: ${K2_THINK_API_KEY}
       K2_THINK_API_URL: ${K2_THINK_API_URL:-https://api.k2think.com/v1}
-      SECRET_KEY: ${SECRET_KEY:-dev-key-change-in-production}
+      SECRET_KEY: ${SECRET_KEY:-CHANGE_THIS_TO_A_SECURE_RANDOM_STRING_32_CHARS_MINIMUM}
       ALGORITHM: ${ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # Database — REQUIRED: must be set in .env
-    DATABASE_URL: str = "postgresql://user:onion123@localhost:5432/scoinvestigator"
+    DATABASE_URL: str = "postgresql://user:CHANGE_THIS_PASSWORD@localhost:5432/scoinvestigator"
     
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     DB_ECHO: bool = False
 
     # Security — REQUIRED: must be set in .env
-    SECRET_KEY: str = "your-super-secret-key-change-this-in-production-must-be-at-least-32-characters"
+    SECRET_KEY: str = "CHANGE_THIS_TO_A_SECURE_RANDOM_STRING_32_CHARS_MINIMUM"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 

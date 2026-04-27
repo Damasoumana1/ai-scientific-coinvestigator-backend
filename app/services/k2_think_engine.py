@@ -87,7 +87,7 @@ class K2ThinkEngine:
 
             parser = JsonOutputParser()
             
-            # 4. Prompt autoritaire pour éviter la paresse (Laziness)
+            # 4. Prompt autoritaire pour éviter la paresse (Laziness) - Version améliorée
             instruction_prompt = f"""[SCIENTIFIC MISSION]
 Perform an EXHAUSTIVE and DETAILED comparative analysis of the attached documents.
 CRITICAL RULES:
@@ -97,33 +97,105 @@ CRITICAL RULES:
 - Your output must be a single, complete, and valid JSON object exactly matching the schema below.
 - You MUST populate ALL fields with complete, real text. Do NOT abbreviate the JSON output.
 - NEVER write `... JSON ...` or `{{"...": "..."}}`. You must write out the full, complete JSON object.
+- IMPORTANT: Use DOUBLE QUOTES for all strings and keys. Do NOT use single quotes.
+- IMPORTANT: Do NOT add comments or extra text outside the JSON structure.
 
 [DOCUMENTS TO ANALYZE]
 {context}
 
-[REQUIRED SCHEMA]
+[REQUIRED SCHEMA - COPY THIS EXACTLY]
 You must return a JSON object with the following structure:
 {{
-  "reasoning_summary": "Detailed summary",
+  "reasoning_summary": "Detailed summary of your analysis process and key findings",
   "confidence_score": 0.85,
-  "divergences": [ {{"variable": "var", "finding_a": "A", "finding_b": "B", "impact": "impact"}} ],
-  "contradictions": [ {{"topic": "topic", "conflict": "conflict", "resolution_path": "path"}} ],
-  "common_findings": ["finding 1", "finding 2"],
-  "research_gaps": [ {{"description": "gap", "importance_score": 0.9, "related_variables": ["v1"], "suggested_investigation": "investigation", "source_documents": ["doc_id"], "citations": ["cit"]}} ],
-  "counter_hypotheses": [ {{"hypothesis": "hyp", "rationale": "rat", "potential_bias": "bias", "validation_experiment": "exp", "confidence_against": 0.8, "citations": ["cit"]}} ],
+  "divergences": [
+    {{
+      "variable": "specific_variable_name",
+      "finding_a": "Complete finding from document A with citation",
+      "finding_b": "Complete finding from document B with citation", 
+      "impact": "Detailed explanation of the scientific impact of this divergence"
+    }}
+  ],
+  "contradictions": [
+    {{
+      "topic": "specific_topic_of_contradiction",
+      "conflict": "Detailed description of the conflicting findings",
+      "resolution_path": "Step-by-step approach to resolve this contradiction experimentally"
+    }}
+  ],
+  "common_findings": [
+    "First common finding with full explanation",
+    "Second common finding with full explanation"
+  ],
+  "research_gaps": [
+    {{
+      "description": "Detailed description of the research gap identified",
+      "importance_score": 0.9,
+      "related_variables": ["variable1", "variable2"],
+      "suggested_investigation": "Detailed experimental approach to address this gap",
+      "source_documents": ["Document title or citation"],
+      "citations": ["(Author, Year)"]
+    }}
+  ],
+  "counter_hypotheses": [
+    {{
+      "hypothesis": "Alternative hypothesis that contradicts common findings",
+      "rationale": "Scientific rationale for considering this counter hypothesis",
+      "potential_bias": "Potential sources of bias in the original studies",
+      "validation_experiment": "Detailed experimental design to test this hypothesis",
+      "confidence_against": 0.8,
+      "citations": ["(Author, Year)"]
+    }}
+  ],
   "protocol": {{
-    "title": "Protocol title", "hypothesis": "hyp", "objective": "obj", "expected_outcomes": "outcomes",
-    "statistical_analysis_plan": "plan", "success_criteria": ["crit"], "estimated_duration_days": 30.0,
-    "estimated_budget_usd": 10000.0, "resource_optimization": "opt", "material_constraints": "const",
-    "alternative_approaches": ["alt"], "risk_assessment": {{"risk": "mitigation"}},
-    "variables": [ {{"name": "v", "type": "independent", "measurement_unit": "unit", "measurement_method": "method", "possible_values": ["val"]}} ],
-    "steps": [ {{"description": "step", "duration_hours": 2.5, "materials": ["mat"], "critical_parameters": ["param"], "validation_criteria": "crit", "risk_level": "medium", "contingency_plan": "plan"}} ]
+    "title": "Complete protocol title describing the experimental approach",
+    "hypothesis": "Clear, testable hypothesis statement",
+    "objective": "Specific objectives of the experimental protocol",
+    "expected_outcomes": "Expected results and their scientific significance",
+    "statistical_analysis_plan": "Detailed statistical analysis approach",
+    "success_criteria": ["Criterion 1", "Criterion 2"],
+    "estimated_duration_days": 30.0,
+    "estimated_budget_usd": 10000.0,
+    "resource_optimization": "Strategy for optimizing resource usage",
+    "material_constraints": "Any material or equipment constraints",
+    "alternative_approaches": ["Alternative method 1", "Alternative method 2"],
+    "risk_assessment": {{"risk_type": "Detailed mitigation strategy"}},
+    "variables": [
+      {{
+        "name": "variable_name",
+        "type": "independent",
+        "measurement_unit": "unit_of_measurement",
+        "measurement_method": "Detailed measurement procedure",
+        "possible_values": ["value1", "value2"]
+      }}
+    ],
+    "steps": [
+      {{
+        "description": "Detailed step description with all parameters",
+        "duration_hours": 2.5,
+        "materials": ["Material 1", "Material 2"],
+        "critical_parameters": ["Parameter 1", "Parameter 2"],
+        "validation_criteria": "How to validate this step was performed correctly",
+        "risk_level": "medium",
+        "contingency_plan": "What to do if this step fails"
+      }}
+    ]
   }},
-  "recommendations": ["rec 1"]
+  "recommendations": [
+    "First detailed recommendation for future research",
+    "Second detailed recommendation for future research"
+  ]
 }}
 
-[FINAL OUTPUT STEP]
-Take your time to deeply analyze the documents inside a <think> block. After your analysis is complete, you MUST output the requested JSON object exactly. To ensure correct parsing, please enclose your final JSON object between [RESULT] and [/RESULT] tags. Do not truncate the JSON. NEVER output `... JSON ...`.
+[FINAL OUTPUT INSTRUCTIONS]
+1. Think step-by-step inside a <think> block about your analysis
+2. After your analysis is complete, output ONLY the JSON object
+3. Do NOT include any text before or after the JSON
+4. Ensure the JSON is valid and parseable
+5. Use double quotes for all strings and keys
+6. Do not use single quotes anywhere in the JSON
+
+[RESULT]
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
@@ -149,54 +221,104 @@ Take your time to deeply analyze the documents inside a <think> block. After you
             # NETTOYAGE MANUEL DU JSON (Crucial pour les modèles "Thinking")
             raw_content = response.content
             
-            # 5. NETTOYAGE ET RÉPARATION DU JSON
+            # 5. NETTOYAGE ET RÉPARATION DU JSON (Version améliorée)
             raw_content = response.content
             import re
             import json
 
-            # 1. Tentative d'extraction via bloc markdown standard (très fiable pour les LLMs)
+            logger.info(f"Raw K2 response length: {len(raw_content)}")
+            logger.debug(f"Raw K2 response preview: {raw_content[:500]}...")
+
+            # 1. Tentative d'extraction via bloc markdown standard
             json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_content, re.DOTALL)
             
             if json_block_match:
                 clean_json = json_block_match.group(1).strip()
+                logger.info("JSON extracted from markdown block")
             else:
                 # 2. Tentative d'extraction via balises [RESULT]
-                tag_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*\[/RESULT\]', raw_content, re.DOTALL)
-                if tag_match:
-                    clean_json = tag_match.group(1).strip()
+                result_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*$', raw_content, re.DOTALL)
+                if result_match:
+                    clean_json = result_match.group(1).strip()
+                    logger.info("JSON extracted from [RESULT] tag")
                 else:
-                    # 3. Recherche du bloc JSON le plus large possible (du premier { au dernier })
-                    # Cela ignore les petits {} aléatoires dans le texte de réflexion.
+                    # 3. Recherche du bloc JSON le plus large possible
                     start_idx = raw_content.find('{')
                     end_idx = raw_content.rfind('}')
                     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
                         clean_json = raw_content[start_idx:end_idx + 1]
-            
+                        logger.info("JSON extracted by finding outermost braces")
+                    else:
+                        clean_json = ""
+
             if not clean_json:
-                logger.error(f"No JSON block found in content: {raw_content[:100]}...")
+                logger.error(f"No JSON block found in content. Full content: {raw_content}")
                 raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
 
-            # 3. Nettoyage final des résidus de Markdown et erreurs LLM communes
+            # 4. Nettoyage final des résidus de Markdown et erreurs LLM communes
             clean_json = clean_json.replace("```json", "").replace("```", "").strip()
             clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
             clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
 
+            logger.info(f"Cleaned JSON length: {len(clean_json)}")
+            logger.debug(f"Cleaned JSON preview: {clean_json[:200]}...")
+
             try:
                 k2_analysis = json.loads(clean_json)
-            except Exception as e:
+                logger.info("JSON parsing successful")
+            except json.JSONDecodeError as e:
                 logger.error(f"JSON.LOADS failed: {e}")
-                # Tentative ultime : nettoyage markdown et correction d'erreurs courantes LLM
+                logger.error(f"Failed JSON content: {clean_json}")
+
+                # Tentative ultime : nettoyage avancé et correction d'erreurs courantes LLM
                 try:
                     clean_json_fixed = clean_json.replace("```json", "").replace("```", "").strip()
+
                     # Fix single quotes around keys: {'key': ...} -> {"key": ...}
                     clean_json_fixed = re.sub(r"([{,]\s*)'([^']+)'(\s*:)", r'\1"\2"\3', clean_json_fixed)
+
                     # Fix unquoted keys: {key: ...} -> {"key": ...}
                     clean_json_fixed = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', clean_json_fixed)
-                    # Try to parse again
+
+                    # Fix trailing commas before closing braces/brackets
+                    clean_json_fixed = re.sub(r',\s*(\}|\])', r'\1', clean_json_fixed)
+
+                    logger.info("Attempting to parse with fixes applied")
                     k2_analysis = json.loads(clean_json_fixed)
-                except Exception as e2:
-                    logger.error(f"All JSON parsing attempts failed. Error: {e2}. Cleaned JSON was: {clean_json[:500]}...")
-                    raise e
+                    logger.info("JSON parsing successful after fixes")
+
+                except json.JSONDecodeError as e2:
+                    logger.error(f"All JSON parsing attempts failed. Error: {e2}")
+                    logger.error(f"Final cleaned JSON was: {clean_json_fixed[:1000]}...")
+
+                    # Si tout échoue, créer un résultat par défaut avec les informations disponibles
+                    logger.warning("Creating fallback analysis result due to JSON parsing failure")
+                    k2_analysis = {
+                        "reasoning_summary": f"Analysis completed but JSON parsing failed. Raw response length: {len(raw_content)} characters. Error: {str(e2)}",
+                        "confidence_score": 0.5,
+                        "divergences": [],
+                        "contradictions": [],
+                        "common_findings": ["Analysis attempted but result parsing failed"],
+                        "research_gaps": [],
+                        "counter_hypotheses": [],
+                        "protocol": {
+                            "title": "Analysis Failed - Manual Review Required",
+                            "hypothesis": "Unable to parse AI response",
+                            "objective": "Manual review of raw AI output needed",
+                            "expected_outcomes": "Manual analysis required",
+                            "statistical_analysis_plan": "TBD",
+                            "success_criteria": ["Manual review completed"],
+                            "estimated_duration_days": 1.0,
+                            "estimated_budget_usd": 0.0,
+                            "resource_optimization": "N/A",
+                            "material_constraints": "N/A",
+                            "alternative_approaches": ["Manual analysis"],
+                            "risk_assessment": {"parsing_failure": "Manual intervention required"},
+                            "variables": [],
+                            "steps": []
+                        },
+                        "recommendations": ["Review raw AI response manually", "Consider retrying analysis"]
+                    }
 
             # 6. Conversion en schémas internes
             comparative_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
