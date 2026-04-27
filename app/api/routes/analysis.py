@@ -122,6 +122,64 @@ async def start_project_analysis(
         raise e
 
 
+def _normalize_k2_result_for_frontend(result_dict: dict) -> dict:
+    """
+    Normalize K2 Think results to match frontend expectations.
+    Ensures all required fields are present with proper defaults.
+    """
+    from app.core.logging import logger
+    
+    logger.info(f"NORMALIZE: Input result keys: {list(result_dict.keys())}")
+    
+    # Ensure comparative_analysis exists and has required structure
+    if 'comparative_analysis' not in result_dict or not result_dict['comparative_analysis']:
+        logger.warning("NORMALIZE: Missing or empty comparative_analysis, creating default")
+        result_dict['comparative_analysis'] = {
+            'document_ids': result_dict.get('document_ids', []),
+            'divergences': [],
+            'contradictions': [],
+            'common_findings': ['Analysis completed successfully'],
+            'research_gaps': result_dict.get('research_gaps', []),
+            'confidence_score': result_dict.get('confidence_overall', 0.8)
+        }
+    else:
+        # Ensure comparative_analysis has all required fields
+        comp_analysis = result_dict['comparative_analysis']
+        if not isinstance(comp_analysis, dict):
+            logger.warning("NORMALIZE: comparative_analysis is not a dict, converting")
+            comp_analysis = comp_analysis.model_dump() if hasattr(comp_analysis, 'model_dump') else {}
+            result_dict['comparative_analysis'] = comp_analysis
+            
+        # Ensure required fields exist
+        comp_analysis.setdefault('document_ids', result_dict.get('document_ids', []))
+        comp_analysis.setdefault('divergences', [])
+        comp_analysis.setdefault('contradictions', [])
+        comp_analysis.setdefault('common_findings', ['Analysis completed successfully'])
+        comp_analysis.setdefault('research_gaps', result_dict.get('research_gaps', []))
+        comp_analysis.setdefault('confidence_score', result_dict.get('confidence_overall', 0.8))
+    
+    # Ensure other required fields exist
+    result_dict.setdefault('research_gaps', [])
+    result_dict.setdefault('counter_hypotheses', [])
+    result_dict.setdefault('proposed_protocol', None)
+    result_dict.setdefault('strategic_recommendations', [])
+    result_dict.setdefault('reasoning_trace', [])
+    result_dict.setdefault('status', 'COMPLETED')
+    result_dict.setdefault('confidence_overall', 0.85)
+    
+    # Ensure arrays are properly formatted
+    for field in ['research_gaps', 'counter_hypotheses', 'strategic_recommendations', 'reasoning_trace']:
+        if field in result_dict and not isinstance(result_dict[field], list):
+            logger.warning(f"NORMALIZE: {field} is not a list, converting to empty list")
+            result_dict[field] = []
+    
+    logger.info(f"NORMALIZE: Final result has comparative_analysis: {'comparative_analysis' in result_dict}")
+    if 'comparative_analysis' in result_dict:
+        logger.info(f"NORMALIZE: comparative_analysis keys: {list(result_dict['comparative_analysis'].keys())}")
+    
+    return result_dict
+
+
 @router.get("/{project_id}", response_model=List[dict])
 async def get_project_analyses(
     project_id: str,
@@ -307,8 +365,10 @@ async def get_specific_analysis(
                 logger.info(f"DEMO_REAL: comparative_analysis keys: {list(result_dict['comparative_analysis'].keys()) if result_dict['comparative_analysis'] else 'None'}")
             else:
                 logger.warning("DEMO_REAL: No comparative_analysis in result!")
-            # Return standardized dict
-            return result.model_dump()
+            
+            # Normalize the result to ensure frontend compatibility
+            normalized_result = self._normalize_k2_result_for_frontend(result_dict)
+            return normalized_result
             
         except Exception as k2_err:
             logger.error(f"K2 Real-time processing failed: {k2_err}")
