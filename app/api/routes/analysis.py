@@ -194,6 +194,115 @@ async def get_project_analyses(
     return analyses
 
 
+@router.get("/{analysis_id}/chat", response_model=List[dict])
+async def get_chat_history(
+    analysis_id: str,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Récupère l'historique de chat pour une analyse"""
+    if analysis_id.startswith("demo_"):
+        return []
+    
+    try:
+        from app.db.repositories.chat_repo import ChatRepository
+        chat_repo = ChatRepository(db)
+        messages = chat_repo.get_history(UUID(analysis_id))
+        
+        return [
+            {
+                "role": m.role,
+                "content": m.content,
+                "reasoning_log": m.reasoning_log,
+                "created_at": m.created_at
+            }
+            for m in messages
+        ]
+    except Exception as e:
+        logger.error(f"Failed to fetch chat history: {e}")
+        return []
+
+
+@router.post("/{analysis_id}/chat", response_model=ChatResponse)
+async def scientific_chat(
+    analysis_id: str,
+    request: ChatRequest,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Discussion interactive avec K2 Think sur une analyse spécifique
+    """
+    from app.db.repositories.user_repo import UserRepository
+    user_repo = UserRepository(db)
+    
+    # 1. Vérification des crédits (10 pour un chat)
+    if not current_user.id.hex.startswith("0000"):
+        if current_user.credits < 10:
+             raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient K2 Credits. Required: 10"
+            )
+        # Deduct
+        user_repo.deduct_credits(current_user, 10)
+
+    from app.core.logging import logger
+    logger.info(f"Chat request for analysis {analysis_id}: {request.message[:50]}...")
+    
+    from app.db.repositories.chat_repo import ChatRepository
+    chat_repo = ChatRepository(db)
+    is_persistent = not analysis_id.startswith("demo_")
+    
+    # Save user message
+    if is_persistent:
+        try:
+            chat_repo.save_message(UUID(analysis_id), "user", request.message)
+        except Exception as err:
+            logger.error(f"Failed to save user message: {err}")
+
+    try:
+        # If we have context in the request, use it. 
+        # Otherwise, try to fetch it if not demo.
+        context = request.analysis_context
+        
+        engine = K2ThinkEngine()
+        result = await engine.chat(
+            message=request.message,
+            analysis_context=context,
+            history=request.history or [],
+            user_id=str(current_user.id)
+        )
+        
+        # Save assistant message
+        if is_persistent:
+            try:
+                ans = result.get("answer", "") if isinstance(result, dict) else result.answer
+                rl = result.get("reasoning_log", "") if isinstance(result, dict) else result.reasoning_log
+                chat_repo.save_message(UUID(analysis_id), "assistant", ans, rl)
+            except Exception as err:
+                logger.error(f"Failed to save assistant message: {err}")
+
+        # Update credits in result
+        if isinstance(result, ChatResponse):
+             result.remaining_credits = current_user.credits
+        elif isinstance(result, dict):
+             result["remaining_credits"] = current_user.credits
+             
+        logger.info(f"Chat response generated successfully")
+        return result
+    except Exception as e:
+        # Fallback for Demo
+        import traceback
+        logger.error(f"Chat error: {e}")
+        logger.error(traceback.format_exc())
+        return {
+            "answer": f"En tant qu'assistant K2, je confirme que cette piste de recherche est prometteuse d'après les documents analysés. \n\nVous avez demandé : '{request.message}'",
+            "reasoning_log": "Simulated reasoning trace for hackathon demo.",
+            "suggested_actions": ["Explorer ce point", "Générer un protocole dédié"]
+        }
+
+
+
 @router.get("/{project_id}/{analysis_id}", response_model=dict)
 async def get_specific_analysis(
     project_id: str,
@@ -432,114 +541,6 @@ async def get_specific_analysis(
         # Fallback for unexpected DB drops during execution
         logger.error(f"Analysis DB Error: {e}")
         return MockIntelligenceService.get_mock_analysis_result()
-
-
-@router.get("/{analysis_id}/chat", response_model=List[dict])
-async def get_chat_history(
-    analysis_id: str,
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Récupère l'historique de chat pour une analyse"""
-    if analysis_id.startswith("demo_"):
-        return []
-    
-    try:
-        from app.db.repositories.chat_repo import ChatRepository
-        chat_repo = ChatRepository(db)
-        messages = chat_repo.get_history(UUID(analysis_id))
-        
-        return [
-            {
-                "role": m.role,
-                "content": m.content,
-                "reasoning_log": m.reasoning_log,
-                "created_at": m.created_at
-            }
-            for m in messages
-        ]
-    except Exception as e:
-        logger.error(f"Failed to fetch chat history: {e}")
-        return []
-
-
-@router.post("/{analysis_id}/chat", response_model=ChatResponse)
-async def scientific_chat(
-    analysis_id: str,
-    request: ChatRequest,
-    current_user = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Discussion interactive avec K2 Think sur une analyse spécifique
-    """
-    from app.db.repositories.user_repo import UserRepository
-    user_repo = UserRepository(db)
-    
-    # 1. Vérification des crédits (10 pour un chat)
-    if not current_user.id.hex.startswith("0000"):
-        if current_user.credits < 10:
-             raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail="Insufficient K2 Credits. Required: 10"
-            )
-        # Deduct
-        user_repo.deduct_credits(current_user, 10)
-
-    from app.core.logging import logger
-    logger.info(f"Chat request for analysis {analysis_id}: {request.message[:50]}...")
-    
-    from app.db.repositories.chat_repo import ChatRepository
-    chat_repo = ChatRepository(db)
-    is_persistent = not analysis_id.startswith("demo_")
-    
-    # Save user message
-    if is_persistent:
-        try:
-            chat_repo.save_message(UUID(analysis_id), "user", request.message)
-        except Exception as err:
-            logger.error(f"Failed to save user message: {err}")
-
-    try:
-        # If we have context in the request, use it. 
-        # Otherwise, try to fetch it if not demo.
-        context = request.analysis_context
-        
-        engine = K2ThinkEngine()
-        result = await engine.chat(
-            message=request.message,
-            analysis_context=context,
-            history=request.history or [],
-            user_id=str(current_user.id)
-        )
-        
-        # Save assistant message
-        if is_persistent:
-            try:
-                ans = result.get("answer", "") if isinstance(result, dict) else result.answer
-                rl = result.get("reasoning_log", "") if isinstance(result, dict) else result.reasoning_log
-                chat_repo.save_message(UUID(analysis_id), "assistant", ans, rl)
-            except Exception as err:
-                logger.error(f"Failed to save assistant message: {err}")
-
-        # Update credits in result
-        if isinstance(result, ChatResponse):
-             result.remaining_credits = current_user.credits
-        elif isinstance(result, dict):
-             result["remaining_credits"] = current_user.credits
-             
-        logger.info(f"Chat response generated successfully")
-        return result
-    except Exception as e:
-        # Fallback for Demo
-        import traceback
-        logger.error(f"Chat error: {e}")
-        logger.error(traceback.format_exc())
-        return {
-            "answer": f"En tant qu'assistant K2, je confirme que cette piste de recherche est prometteuse d'après les documents analysés. \n\nVous avez demandé : '{request.message}'",
-            "reasoning_log": "Simulated reasoning trace for hackathon demo.",
-            "suggested_actions": ["Explorer ce point", "Générer un protocole dédié"]
-        }
 
 
 @router.post("/{analysis_id}/export/{format}")
