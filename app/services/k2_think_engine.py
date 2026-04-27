@@ -364,6 +364,12 @@ Keep your tone professional, strategic, and scientifically rigorous.
         
         protocol_data = k2_result.get("protocol", {})
         
+        def ensure_list(val):
+            if val is None: return []
+            if isinstance(val, str): return [val]
+            if not isinstance(val, list): return [str(val)]
+            return val
+        
         # Construire les étapes
         steps = []
         for i, step_data in enumerate(protocol_data.get("steps", []), 1):
@@ -371,8 +377,8 @@ Keep your tone professional, strategic, and scientifically rigorous.
                 step_number=i,
                 description=step_data.get("description", f"Step {i}"),
                 duration_hours=step_data.get("duration_hours"),
-                materials=step_data.get("materials", []),
-                critical_parameters=step_data.get("critical_parameters", []),
+                materials=ensure_list(step_data.get("materials", [])),
+                critical_parameters=ensure_list(step_data.get("critical_parameters", [])),
                 validation_criteria=step_data.get("validation_criteria", "Protocol requirements"),
                 risk_level=step_data.get("risk_level", "medium"),
                 contingency_plan=step_data.get("contingency_plan")
@@ -381,12 +387,16 @@ Keep your tone professional, strategic, and scientifically rigorous.
         # Construire les variables
         variables = []
         for var_data in protocol_data.get("variables", []):
+            possible_vals = var_data.get("possible_values")
+            if isinstance(possible_vals, str):
+                possible_vals = [possible_vals]
+                
             variables.append(ExperimentalVariable(
                 name=var_data.get("name", "Variable"),
                 type=var_data.get("type", "independent"),
                 measurement_unit=var_data.get("measurement_unit"),
                 measurement_method=var_data.get("measurement_method", "TBD"),
-                possible_values=var_data.get("possible_values")
+                possible_values=possible_vals
             ))
         
         # Robust parsing for duration and budget
@@ -411,12 +421,12 @@ Keep your tone professional, strategic, and scientifically rigorous.
             steps=steps,
             expected_outcomes=protocol_data.get("expected_outcomes", "To be evaluated"),
             statistical_analysis_plan=protocol_data.get("statistical_analysis_plan", "TBD"),
-            success_criteria=protocol_data.get("success_criteria", ["Protocol completed as designed"]),
+            success_criteria=ensure_list(protocol_data.get("success_criteria", ["Protocol completed as designed"])),
             estimated_duration_days=parse_float(protocol_data.get("estimated_duration_days"), 30.0),
             estimated_budget_usd=parse_float(protocol_data.get("estimated_budget_usd"), None),
             resource_optimization=protocol_data.get("resource_optimization"),
-            material_constraints=protocol_data.get("material_constraints"),
-            alternative_approaches=protocol_data.get("alternative_approaches", []),
+            material_constraints=ensure_list(protocol_data.get("material_constraints", [])),
+            alternative_approaches=ensure_list(protocol_data.get("alternative_approaches", [])),
             risk_assessment=protocol_data.get("risk_assessment", {})
         )
     
