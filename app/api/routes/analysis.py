@@ -337,7 +337,22 @@ async def get_specific_analysis(
                 detail="Analysis not found"
             )
         
-        return analysis
+        # Flatten result_data into the root response so it matches the mock/Pydantic format
+        response_dict = {
+            "id": str(analysis.id),
+            "request_id": str(analysis.id), # mock data uses request_id
+            "project_id": str(analysis.project_id),
+            "status": analysis.status,
+            "model_used": analysis.model_used,
+            "started_at": analysis.started_at.isoformat() if analysis.started_at else None,
+            "completed_at": analysis.completed_at.isoformat() if analysis.completed_at else None
+        }
+        
+        if analysis.result_data:
+            for k, v in analysis.result_data.items():
+                response_dict[k] = v
+                
+        return response_dict
     except HTTPException:
         raise
     except Exception as e:
