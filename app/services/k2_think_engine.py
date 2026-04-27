@@ -154,35 +154,26 @@ Take your time to deeply analyze the documents inside a <think> block. After you
             import re
             import json
 
-            # Supprimer les réflexions
-            content = re.sub(r'<think.*?>.*?</think.*?>', '', raw_content, flags=re.DOTALL).strip()
+            # 1. Tentative d'extraction via bloc markdown standard (très fiable pour les LLMs)
+            json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_content, re.DOTALL)
             
-            logger.info(f"K2 RAW RESPONSE (len={len(raw_content)}): {raw_content[:200]}...")
-
-            clean_json = ""
-            
-            # 1. Tentative d'extraction via les balises [RESULT]
-            tag_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*\[/RESULT\]', content, re.DOTALL)
-            if not tag_match:
-                tag_match = re.search(r'\[RESULT\](.*?)\[/RESULT\]', content, re.DOTALL)
-            
-            if tag_match:
-                clean_json = tag_match.group(1).strip()
+            if json_block_match:
+                clean_json = json_block_match.group(1).strip()
             else:
-                # 2. Si pas de balises, on cherche le dernier bloc JSON valide { ... }
-                # On utilise une regex non-gourmande pour éviter de capturer du texte entre deux blocs
-                all_json_blocks = re.findall(r'(\{.*?\})', content, re.DOTALL)
-                if all_json_blocks:
-                    clean_json = all_json_blocks[-1]
+                # 2. Tentative d'extraction via balises [RESULT]
+                tag_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*\[/RESULT\]', raw_content, re.DOTALL)
+                if tag_match:
+                    clean_json = tag_match.group(1).strip()
                 else:
-                    # Recherche manuelle par index (plus robuste si regex s'emmêle)
-                    start_idx = content.find('{')
-                    end_idx = content.rfind('}')
-                    if start_idx != -1 and end_idx != -1:
-                        clean_json = content[start_idx:end_idx + 1]
+                    # 3. Recherche du bloc JSON le plus large possible (du premier { au dernier })
+                    # Cela ignore les petits {} aléatoires dans le texte de réflexion.
+                    start_idx = raw_content.find('{')
+                    end_idx = raw_content.rfind('}')
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        clean_json = raw_content[start_idx:end_idx + 1]
             
             if not clean_json:
-                logger.error(f"No JSON block found in content: {content[:100]}...")
+                logger.error(f"No JSON block found in content: {raw_content[:100]}...")
                 raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
 
             # 3. Nettoyage final des résidus de Markdown et erreurs LLM communes
