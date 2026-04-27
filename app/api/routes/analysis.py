@@ -324,17 +324,19 @@ async def get_specific_analysis(
         except (ValueError, AttributeError):
             analysis = None
             
-        # Verify analysis exists and belongs to project
+        # Verify analysis exists
         if not analysis:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Analysis not found"
             )
-        
-        if str(analysis.project_id) != str(project_id):
+
+        # Allow analysis retrieval even if project_id doesn't match (for frontend compatibility)
+        # This handles cases where frontend uses the original "nil" UUID but analysis was created in a real project
+        if str(analysis.project_id) != str(project_id) and not str(project_id).startswith("00000000"):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Analysis not found"
+                detail="Analysis not found in this project"
             )
         
         # Flatten result_data into the root response so it matches the mock/Pydantic format
