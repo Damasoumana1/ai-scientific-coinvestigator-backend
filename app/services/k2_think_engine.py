@@ -131,8 +131,8 @@ Take your time to deeply analyze the documents inside a <think> block. After you
                 model="MBZUAI-IFM/K2-Think-v2",
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0,
-                max_tokens=None,
+                temperature=0.6,
+                max_tokens=8192,
                 timeout=300,
                 max_retries=3 
             )
