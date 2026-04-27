@@ -5,6 +5,8 @@ Handles LaTeX grant generation, CSV export, and Matplotlib visualization
 import os
 import json
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from typing import Dict, Any, Optional
 from app.services.k2_think_engine import K2ThinkEngine

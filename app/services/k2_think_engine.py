@@ -95,7 +95,7 @@ CRITICAL RULES:
 - EVERY field in the JSON must contain at least 2-3 sentences of technical content extracted from the documents.
 - Use the specific citation keys provided (e.g., (Author, Year)).
 - Your output must be a single, complete, and valid JSON object exactly matching the schema below.
-- Do NOT output formatting like `... JSON ...` literally. You must generate the full JSON.
+- You MUST populate ALL fields with complete, real text. Do NOT abbreviate the JSON output.
 
 [DOCUMENTS TO ANALYZE]
 {context}
