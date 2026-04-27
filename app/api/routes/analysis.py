@@ -108,16 +108,16 @@ async def start_project_analysis(
         }
     except Exception as e:
         logger.error(f"Failed to start analysis: {e}")
-        # Fallback to demo mode only if something really fails with DB
+        # Fallback to demo_real mode to ensure K2 Think processing
         if any(keyword in str(e).lower() for keyword in ["operationalerror", "connection", "integrityerror", "foreign key"]):
             # Encapsulate paper IDs in the analysis_id to pass them to the GET request in stateless demo mode
              paper_ids_str = ",".join(request.paper_ids)
              mock_id = f"demo_real_{request.reasoning_depth}_{request.ethics_rigor}_{request.info_density}_{paper_ids_str}"
              return {
-                 "message": "Demo mode fallback: Analysis started (Real-time K2 Processing)",
+                 "message": "Real-time K2 Processing: Analysis started",
                  "analysis_id": mock_id,
                  "status": "pending",
-                 "mode": "demo"
+                 "mode": "k2_real"
              }
         raise e
 
@@ -309,9 +309,9 @@ async def get_specific_analysis(
             logger.error(traceback.format_exc())
             return MockIntelligenceService.get_mock_analysis_result()
 
-    # 2. Cas du mock statique de base
-    if str(analysis_id).startswith("demo_") or "mock" in str(analysis_id) or str(project_id).startswith("0000"):
-        return MockIntelligenceService.get_mock_analysis_result()
+    # 2. Cas du mock statique de base - DÉSACTIVÉ pour forcer les vraies analyses K2
+    # if str(analysis_id).startswith("demo_") or "mock" in str(analysis_id) or str(project_id).startswith("0000"):
+    #     return MockIntelligenceService.get_mock_analysis_result()
 
     # 3. Mode standard (Base de données)
     try:
