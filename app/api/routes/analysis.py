@@ -300,6 +300,13 @@ async def get_specific_analysis(
             result = await engine.process_analysis_request(k2_request)
             
             logger.info(f"DEMO_REAL: K2 success! Request ID: {result.request_id}")
+            # DEBUG: Log the actual result structure
+            result_dict = result.model_dump()
+            logger.info(f"DEMO_REAL: Result keys: {list(result_dict.keys())}")
+            if 'comparative_analysis' in result_dict:
+                logger.info(f"DEMO_REAL: comparative_analysis keys: {list(result_dict['comparative_analysis'].keys()) if result_dict['comparative_analysis'] else 'None'}")
+            else:
+                logger.warning("DEMO_REAL: No comparative_analysis in result!")
             # Return standardized dict
             return result.model_dump()
             
