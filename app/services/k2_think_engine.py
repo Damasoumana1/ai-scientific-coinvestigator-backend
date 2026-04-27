@@ -96,6 +96,7 @@ CRITICAL RULES:
 - Use the specific citation keys provided (e.g., (Author, Year)).
 - Your output must be a single, complete, and valid JSON object exactly matching the schema below.
 - You MUST populate ALL fields with complete, real text. Do NOT abbreviate the JSON output.
+- NEVER write `... JSON ...` or `{{"...": "..."}}`. You must write out the full, complete JSON object.
 
 [DOCUMENTS TO ANALYZE]
 {context}
@@ -122,7 +123,7 @@ You must return a JSON object with the following structure:
 }}
 
 [FINAL OUTPUT STEP]
-CRITICAL: Do NOT write a long <think> block. You MUST prioritize generating the JSON. If possible, skip the <think> tags completely and just output the JSON between [RESULT] and [/RESULT]. Do not truncate the JSON.
+Take your time to deeply analyze the documents inside a <think> block. After your analysis is complete, you MUST output the requested JSON object exactly. To ensure correct parsing, please enclose your final JSON object between [RESULT] and [/RESULT] tags. Do not truncate the JSON. NEVER output `... JSON ...`.
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
@@ -141,7 +142,7 @@ CRITICAL: Do NOT write a long <think> block. You MUST prioritize generating the 
             
             from langchain.schema import HumanMessage, SystemMessage
             response = await chat.ainvoke([
-                SystemMessage(content="You are a precise scientific data extractor. Speak only in JSON."),
+                SystemMessage(content="You are a precise scientific data extractor. You must analyze the documents step by step, and then provide the final output strictly in JSON format."),
                 HumanMessage(content=instruction_prompt)
             ])
 
