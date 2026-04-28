@@ -188,7 +188,7 @@ You must return a JSON object with the following structure:
 }}
 
 [FINAL OUTPUT INSTRUCTIONS]
-1. Think step-by-step inside a <think> block about your analysis
+1. Think step-by-step inside a <think> block about your analysis. KEEP YOUR THINKING VERY CONCISE (under 1000 words) to avoid truncation.
 2. After your analysis is complete, output ONLY the JSON object
 3. Do NOT include any text before or after the JSON
 4. Ensure the JSON is valid and parseable
@@ -228,6 +228,14 @@ You must return a JSON object with the following structure:
 
             logger.info(f"Raw K2 response length: {len(raw_content)}")
             logger.debug(f"Raw K2 response preview: {raw_content[:500]}...")
+
+            # 0. STRIP OUT THINK TAGS TO PREVENT BRACE MATCHING INSIDE IT
+            if "<think>" in raw_content and "</think>" in raw_content:
+                raw_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL)
+                logger.info("Stripped <think> block from response")
+            elif "<think>" in raw_content:
+                logger.warning("Found <think> but no </think>. The response was likely truncated due to max_tokens.")
+                raw_content = ""
 
             # 1. Tentative d'extraction via bloc markdown standard
             json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_content, re.DOTALL)
