@@ -481,7 +481,7 @@ async def get_specific_analysis(
             if not normalized_result.get('comparative_analysis', {}).get('common_findings'):
                 logger.warning("NORMALIZE: No common_findings, adding default message")
                 normalized_result['comparative_analysis']['common_findings'] = ['K2 Think analysis completed successfully']
-                        return normalized_result
+            return normalized_result
             
         except Exception as k2_err:
             logger.error(f"K2 Real-time processing failed: {k2_err}")
