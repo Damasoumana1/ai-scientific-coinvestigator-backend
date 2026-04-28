@@ -476,7 +476,7 @@ async def get_specific_analysis(
                 logger.warning("DEMO_REAL: No comparative_analysis in result!")
             
             # Normalize the result to ensure frontend compatibility
-            normalized_result = self._normalize_k2_result_for_frontend(result_dict)            
+            normalized_result = _normalize_k2_result_for_frontend(result_dict)            
             # Final validation - ensure we have displayable content
             if not normalized_result.get('comparative_analysis', {}).get('common_findings'):
                 logger.warning("NORMALIZE: No common_findings, adding default message")
@@ -533,6 +533,9 @@ async def get_specific_analysis(
         if analysis.result_data:
             for k, v in analysis.result_data.items():
                 response_dict[k] = v
+                
+        if response_dict.get("status") == "COMPLETED":
+            response_dict = _normalize_k2_result_for_frontend(response_dict)
                 
         return response_dict
     except HTTPException:
