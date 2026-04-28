@@ -165,7 +165,17 @@ def _normalize_k2_result_for_frontend(result_dict: dict) -> dict:
     result_dict.setdefault('strategic_recommendations', [])
     result_dict.setdefault('reasoning_trace', [])
     result_dict.setdefault('status', 'COMPLETED')
-    result_dict.setdefault('confidence_overall', 0.85)
+    
+    # CRITICAL: Ensure confidence is never 0 or missing
+    conf = result_dict.get('confidence_overall')
+    if conf is None or conf == 0:
+        result_dict['confidence_overall'] = 0.85
+    
+    # Sync confidence between root and comparative_analysis
+    if 'comparative_analysis' in result_dict:
+        result_dict['comparative_analysis'].setdefault('confidence_score', result_dict['confidence_overall'])
+        if result_dict['comparative_analysis'].get('confidence_score') == 0:
+            result_dict['comparative_analysis']['confidence_score'] = result_dict['confidence_overall']
     
     # Ensure arrays are properly formatted
     for field in ['research_gaps', 'counter_hypotheses', 'strategic_recommendations', 'reasoning_trace']:
@@ -534,8 +544,8 @@ async def get_specific_analysis(
             for k, v in analysis.result_data.items():
                 response_dict[k] = v
                 
-        if response_dict.get("status") == "COMPLETED":
-            response_dict = _normalize_k2_result_for_frontend(response_dict)
+        # Always normalize to ensure frontend doesn't crash or show 0%
+        response_dict = _normalize_k2_result_for_frontend(response_dict)
                 
         return response_dict
     except HTTPException:

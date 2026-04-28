@@ -260,10 +260,20 @@ You must return a JSON object with the following structure:
                         clean_json = ""
 
             if not clean_json:
-                logger.error(f"No JSON block found in content. Full content: {raw_content}")
+                logger.error(f"No JSON block found in content. Full content: {raw_content[:1000]}...")
                 raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
 
-            # 4. Nettoyage final des résidus de Markdown et erreurs LLM communes
+            # 4. LOG RAW CONTENT FOR DEBUGGING
+            try:
+                os.makedirs("logs", exist_ok=True)
+                with open("logs/k2_raw_response.log", "a", encoding="utf-8") as f:
+                    f.write(f"\n--- ANALYSIS {request_id} ({datetime.now().isoformat()}) ---\n")
+                    f.write(raw_content)
+                    f.write("\n--- END ---\n")
+            except Exception as log_err:
+                logger.error(f"Failed to log raw response: {log_err}")
+
+            # 5. Nettoyage final des résidus de Markdown et erreurs LLM communes
             clean_json = clean_json.replace("```json", "").replace("```", "").strip()
             clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
             clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
@@ -297,7 +307,33 @@ You must return a JSON object with the following structure:
 
                 except json.JSONDecodeError as e2:
                     logger.error(f"All JSON parsing attempts failed. Error: {e2}")
-                    logger.error(f"Final cleaned JSON was: {clean_json_fixed[:1000]}...")
+                    
+                    # ULTIMATE ATTEMPT: If "Extra data", try to take only the first object
+                    if "Extra data" in str(e2):
+                        try:
+                            import re
+                            # Simple approach: find the first matching brace
+                            count = 0
+                            end_pos = -1
+                            for i, char in enumerate(clean_json_fixed):
+                                if char == '{': count += 1
+                                elif char == '}':
+                                    count -= 1
+                                    if count == 0:
+                                        end_pos = i + 1
+                                        break
+                            if end_pos > 0:
+                                logger.info(f"Extra data detected. Attempting to parse first {end_pos} chars.")
+                                k2_analysis = json.loads(clean_json_fixed[:end_pos])
+                                logger.info("JSON parsing successful using first object extraction")
+                        except Exception as e3:
+                            logger.error(f"First object extraction failed: {e3}")
+                            k2_analysis = None
+                    else:
+                        k2_analysis = None
+
+                    if not k2_analysis:
+                        logger.error(f"Final cleaned JSON was: {clean_json_fixed[:1000]}...")
 
                     # Si tout échoue, créer un résultat par défaut avec les informations disponibles
                     logger.warning("Creating fallback analysis result due to JSON parsing failure")
