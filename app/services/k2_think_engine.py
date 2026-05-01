@@ -13,6 +13,7 @@ from app.reasoning.k2_client import K2ThinkClient
 from app.core.settings import settings
 from app.core.logging import logger
 import json
+import os
 
 
 class K2ThinkEngine:

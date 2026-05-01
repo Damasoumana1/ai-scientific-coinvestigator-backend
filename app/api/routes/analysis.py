@@ -10,7 +10,10 @@ from app.schemas.all_schemas import AnalysisRequest, AnalysisResponse
 from uuid import UUID
 import uuid
 from typing import List, Optional
+import json
 import os
+import re
+import traceback
 import glob
 from app.services.mock_intelligence import MockIntelligenceService
 from app.rag.pdf_parser import PDFParser
@@ -130,6 +133,7 @@ def _normalize_k2_result_for_frontend(result_dict: dict) -> dict:
     from app.core.logging import logger
     
     logger.info(f"NORMALIZE: Input result keys: {list(result_dict.keys())}")
+    logger.info(f"NORMALIZE: Status is: {result_dict.get('status')}")
     
     # Ensure comparative_analysis exists and has required structure
     if 'comparative_analysis' not in result_dict or not result_dict['comparative_analysis']:
@@ -211,13 +215,21 @@ async def get_chat_history(
     db: Session = Depends(get_db)
 ):
     """Récupère l'historique de chat pour une analyse"""
-    if analysis_id.startswith("demo_"):
+    if str(analysis_id).startswith("demo_") or not any(c in str(analysis_id) for c in "0123456789abcdef"):
         return []
     
     try:
         from app.db.repositories.chat_repo import ChatRepository
         chat_repo = ChatRepository(db)
-        messages = chat_repo.get_history(UUID(analysis_id))
+        
+        # Validate UUID format
+        try:
+            target_id = UUID(analysis_id)
+        except ValueError:
+            logger.warning(f"Invalid UUID for chat history: {analysis_id}")
+            return []
+            
+        messages = chat_repo.get_history(target_id)
         
         return [
             {

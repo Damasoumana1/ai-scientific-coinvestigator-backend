@@ -175,17 +175,24 @@ class AnalysisService:
 
         except Exception as e:
             db.rollback() # CLEAN TRANSACTION
+            logger.error(f"FATAL ERROR in process_analysis for {analysis_id}: {str(e)}")
             import traceback
-            logger.error(f"Background analysis error for {analysis_id}: {str(e)}")
             logger.error(traceback.format_exc())
+            
             try:
                 error_data = {
                     "status": "FAILED",
-                    "reasoning_summary": f"Erreur technique lors de l'analyse : {str(e)}",
+                    "reasoning_summary": f"Erreur technique lors de l'analyse : {str(e)}\n\nTrace: {traceback.format_exc()[:500]}...",
                     "confidence_overall": 0
                 }
-                self.complete_analysis(UUID(analysis_id), status="FAILED", result=error_data)
-                db.commit()
+                # Use a safe UUID conversion
+                try:
+                    target_uuid = UUID(analysis_id) if isinstance(analysis_id, str) else analysis_id
+                    self.complete_analysis(target_uuid, status="FAILED", result=error_data)
+                    db.commit()
+                    logger.info(f"Marked analysis {analysis_id} as FAILED in DB")
+                except Exception as uuid_err:
+                    logger.error(f"Could not convert {analysis_id} to UUID or save failure: {uuid_err}")
             except Exception as final_err:
                 logger.error(f"Failed to even mark analysis as FAILED: {final_err}")
                 db.rollback()
