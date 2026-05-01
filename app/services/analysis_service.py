@@ -179,7 +179,12 @@ class AnalysisService:
             logger.error(f"Background analysis error for {analysis_id}: {str(e)}")
             logger.error(traceback.format_exc())
             try:
-                self.complete_analysis(UUID(analysis_id), status="FAILED")
+                error_data = {
+                    "status": "FAILED",
+                    "reasoning_summary": f"Erreur technique lors de l'analyse : {str(e)}",
+                    "confidence_overall": 0
+                }
+                self.complete_analysis(UUID(analysis_id), status="FAILED", result=error_data)
                 db.commit()
             except Exception as final_err:
                 logger.error(f"Failed to even mark analysis as FAILED: {final_err}")

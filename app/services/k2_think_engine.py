@@ -203,7 +203,7 @@ You must return a JSON object with the following structure:
                 model="MBZUAI-IFM/K2-Think-v2",
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0.6,
+                temperature=0.1,  # Lower temperature for more stable JSON
                 max_tokens=8192,
                 timeout=300,
                 max_retries=3 
@@ -234,8 +234,8 @@ You must return a JSON object with the following structure:
                 raw_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL)
                 logger.info("Stripped <think> block from response")
             elif "<think>" in raw_content:
-                logger.warning("Found <think> but no </think>. The response was likely truncated due to max_tokens.")
-                raw_content = ""
+                logger.warning("Found <think> but no </think>. The response was likely truncated. Attempting to extract JSON from what we have.")
+                raw_content = re.sub(r'<think>.*', '', raw_content, flags=re.DOTALL)
 
             # 1. Tentative d'extraction via bloc markdown standard
             json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_content, re.DOTALL)
