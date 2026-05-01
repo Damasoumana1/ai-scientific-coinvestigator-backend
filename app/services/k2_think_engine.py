@@ -71,7 +71,7 @@ class K2ThinkEngine:
             # 2. Préparation du contexte documentaire
             context_parts = []
             for doc in request.documents:
-                snippet = doc.content[:10000]
+                snippet = doc.content[:6000] # Reduced to save token budget
                 first_author = doc.authors[0].split()[-1] if doc.authors else "Unknown"
                 year = "n.d."
                 citation_key = f"({first_author}, {year})"
@@ -89,114 +89,54 @@ class K2ThinkEngine:
             parser = JsonOutputParser()
             
             # 4. Prompt autoritaire pour éviter la paresse (Laziness) - Version améliorée
-            instruction_prompt = f"""[SCIENTIFIC MISSION]
-Perform an EXHAUSTIVE and DETAILED comparative analysis of the attached documents.
-CRITICAL RULES:
-- NEVER use placeholders like "...", "etc.", or "[TBD]".
-- EVERY field in the JSON must contain at least 2-3 sentences of technical content extracted from the documents.
-- Use the specific citation keys provided (e.g., (Author, Year)).
-- Your output must be a single, complete, and valid JSON object exactly matching the schema below.
-- You MUST populate ALL fields with complete, real text. Do NOT abbreviate the JSON output.
-- NEVER write `... JSON ...` or `{{"...": "..."}}`. You must write out the full, complete JSON object.
-- IMPORTANT: Use DOUBLE QUOTES for all strings and keys. Do NOT use single quotes.
-- IMPORTANT: Do NOT add comments or extra text outside the JSON structure.
+            instruction_prompt = f"""You are a senior scientific investigator. Analyze the provided research documents and produce a detailed comparative analysis.
 
-[DOCUMENTS TO ANALYZE]
+[DOCUMENTS]
 {context}
 
-[REQUIRED SCHEMA - COPY THIS EXACTLY]
-You must return a JSON object with the following structure:
+[YOUR TASK]
+1. Synthesize findings across all documents.
+2. Identify divergences, contradictions, and gaps.
+3. Propose a new experimental protocol.
+
+[FORMATTING RULES]
+- Output ONLY a valid JSON object.
+- NO preamble, NO explanations before or after JSON.
+- NO single quotes in the JSON.
+- Use valid citations e.g. (Author, Year).
+
+[JSON SCHEMA]
 {{
-  "reasoning_summary": "Detailed summary of your analysis process and key findings",
-  "confidence_score": 0.85,
-  "divergences": [
-    {{
-      "variable": "specific_variable_name",
-      "finding_a": "Complete finding from document A with citation",
-      "finding_b": "Complete finding from document B with citation", 
-      "impact": "Detailed explanation of the scientific impact of this divergence"
-    }}
-  ],
-  "contradictions": [
-    {{
-      "topic": "specific_topic_of_contradiction",
-      "conflict": "Detailed description of the conflicting findings",
-      "resolution_path": "Step-by-step approach to resolve this contradiction experimentally"
-    }}
-  ],
-  "common_findings": [
-    "First common finding with full explanation",
-    "Second common finding with full explanation"
-  ],
-  "research_gaps": [
-    {{
-      "description": "Detailed description of the research gap identified",
-      "importance_score": 0.9,
-      "related_variables": ["variable1", "variable2"],
-      "suggested_investigation": "Detailed experimental approach to address this gap",
-      "source_documents": ["Document title or citation"],
-      "citations": ["(Author, Year)"]
-    }}
-  ],
-  "counter_hypotheses": [
-    {{
-      "hypothesis": "Alternative hypothesis that contradicts common findings",
-      "rationale": "Scientific rationale for considering this counter hypothesis",
-      "potential_bias": "Potential sources of bias in the original studies",
-      "validation_experiment": "Detailed experimental design to test this hypothesis",
-      "confidence_against": 0.8,
-      "citations": ["(Author, Year)"]
-    }}
-  ],
-  "protocol": {{
-    "title": "Complete protocol title describing the experimental approach",
-    "hypothesis": "Clear, testable hypothesis statement",
-    "objective": "Specific objectives of the experimental protocol",
-    "expected_outcomes": "Expected results and their scientific significance",
-    "statistical_analysis_plan": "Detailed statistical analysis approach",
-    "success_criteria": ["Criterion 1", "Criterion 2"],
-    "estimated_duration_days": 30.0,
-    "estimated_budget_usd": 10000.0,
-    "resource_optimization": "Strategy for optimizing resource usage",
-    "material_constraints": "Any material or equipment constraints",
-    "alternative_approaches": ["Alternative method 1", "Alternative method 2"],
-    "risk_assessment": {{"risk_type": "Detailed mitigation strategy"}},
-    "variables": [
-      {{
-        "name": "variable_name",
-        "type": "independent",
-        "measurement_unit": "unit_of_measurement",
-        "measurement_method": "Detailed measurement procedure",
-        "possible_values": ["value1", "value2"]
-      }}
+  "reasoning_summary": "Extensive 200+ word technical summary",
+  "confidence_overall": 0.95,
+  "comparative_analysis": {{
+    "document_ids": ["doc1", "doc2"],
+    "divergences": [
+      {{ "variable": "name", "finding_a": "...", "finding_b": "...", "impact": "..." }}
     ],
+    "contradictions": [
+      {{ "topic": "name", "conflict": "...", "resolution_path": "..." }}
+    ],
+    "common_findings": ["Finding 1", "Finding 2"],
+    "research_gaps": ["Gap 1", "Gap 2"],
+    "confidence_score": 0.9
+  }},
+  "research_gaps": [],
+  "counter_hypotheses": [],
+  "proposed_protocol": {{
+    "title": "...",
+    "objective": "...",
     "steps": [
-      {{
-        "description": "Detailed step description with all parameters",
-        "duration_hours": 2.5,
-        "materials": ["Material 1", "Material 2"],
-        "critical_parameters": ["Parameter 1", "Parameter 2"],
-        "validation_criteria": "How to validate this step was performed correctly",
-        "risk_level": "medium",
-        "contingency_plan": "What to do if this step fails"
-      }}
+       {{ "description": "...", "duration_hours": 1, "materials": [], "critical_parameters": [] }}
     ]
   }},
-  "recommendations": [
-    "First detailed recommendation for future research",
-    "Second detailed recommendation for future research"
-  ]
+  "strategic_recommendations": [],
+  "reasoning_trace": "Brief internal logic summary",
+  "confidence_overall": 0.95
 }}
 
-[FINAL OUTPUT INSTRUCTIONS]
-1. Think step-by-step inside a <think> block about your analysis. KEEP YOUR THINKING VERY CONCISE (under 1000 words) to avoid truncation.
-2. After your analysis is complete, output ONLY the JSON object
-3. Do NOT include any text before or after the JSON
-4. Ensure the JSON is valid and parseable
-5. Use double quotes for all strings and keys
-6. Do not use single quotes anywhere in the JSON
-
-[RESULT]
+[FINAL INSTRUCTION]
+Start directly with <think> if needed, then output the JSON inside [RESULT] tags.
 """
 
             # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
@@ -204,18 +144,15 @@ You must return a JSON object with the following structure:
                 model="MBZUAI-IFM/K2-Think-v2",
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0.1,  # Lower temperature for more stable JSON
-                max_tokens=8192,
-                timeout=300,
-                max_retries=3 
+                temperature=0.1,
+                max_tokens=16000, # Increased for larger responses
+                timeout=400,
+                max_retries=2 
             )
 
-            logger.info("Sending command-style request to K2 Think...")
-            self._log_reasoning("K2_ANALYSIS", "Chain Execution", "Invoking LangChain LCEL with K2 Think V2")
-            
-            from langchain.schema import HumanMessage, SystemMessage
+            logger.info("Sending command-style request to K2 Think (High-Token Mode)...")
+            from langchain.schema import HumanMessage
             response = await chat.ainvoke([
-                SystemMessage(content="You are a precise scientific data extractor. You must analyze the documents step by step, and then provide the final output strictly in JSON format."),
                 HumanMessage(content=instruction_prompt)
             ])
 
@@ -223,7 +160,6 @@ You must return a JSON object with the following structure:
             raw_content = response.content
             
             # 5. NETTOYAGE ET RÉPARATION DU JSON (Version améliorée)
-            raw_content = response.content
             import re
             import json
 
@@ -244,25 +180,67 @@ You must return a JSON object with the following structure:
             if json_block_match:
                 clean_json = json_block_match.group(1).strip()
                 logger.info("JSON extracted from markdown block")
+            # 2. Tentative d'extraction via balises [RESULT]
             else:
-                # 2. Tentative d'extraction via balises [RESULT]
-                result_match = re.search(r'\[RESULT\]\s*(\{.*?\})\s*$', raw_content, re.DOTALL)
+                result_match = re.search(r'\[RESULT\]\s*(.*)', raw_content, re.DOTALL | re.IGNORECASE)
                 if result_match:
-                    clean_json = result_match.group(1).strip()
-                    logger.info("JSON extracted from [RESULT] tag")
+                    extracted = result_match.group(1).strip()
+                    # Find the actual JSON block within this
+                    json_inner = re.search(r'(\{.*\})', extracted, re.DOTALL)
+                    if json_inner:
+                        clean_json = json_inner.group(1).strip()
+                        logger.info("JSON extracted from [RESULT] tag")
                 else:
                     # 3. Recherche du bloc JSON le plus large possible
                     start_idx = raw_content.find('{')
                     end_idx = raw_content.rfind('}')
-                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                        clean_json = raw_content[start_idx:end_idx + 1]
-                        logger.info("JSON extracted by finding outermost braces")
+                    if start_idx != -1:
+                        if end_idx != -1 and end_idx > start_idx:
+                            clean_json = raw_content[start_idx:end_idx + 1]
+                            logger.info("JSON extracted by finding outermost braces")
+                        else:
+                            # TRUNCATED JSON CASE: Start found but no end
+                            logger.warning("JSON appears truncated (start found, no end). Attempting repair.")
+                            clean_json = raw_content[start_idx:]
                     else:
                         clean_json = ""
 
             if not clean_json:
-                logger.error(f"No JSON block found in content. Full content: {raw_content[:1000]}...")
+                self._log_reasoning("ERROR", "Parsing", f"Full content was: {raw_content[:2000]}...")
+                logger.error(f"No JSON block found in content. Full content preview: {raw_content[:1000]}...")
                 raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
+
+            # 6. RÉPARATION AUTOMATIQUE SI TRONQUÉ
+            def repair_json_string(s):
+                s = s.strip()
+                # Count braces
+                open_braces = s.count('{')
+                close_braces = s.count('}')
+                open_brackets = s.count('[')
+                close_brackets = s.count(']')
+                
+                # Close arrays first
+                while open_brackets > close_brackets:
+                    s += ']'
+                    close_brackets += 1
+                # Then close objects
+                while open_braces > close_braces:
+                    s += '}'
+                    close_braces += 1
+                return s
+
+            try:
+                final_result_dict = json.loads(clean_json)
+                logger.info("JSON parsing successful")
+            except json.JSONDecodeError:
+                logger.warning("Standard JSON parsing failed, attempting repair...")
+                try:
+                    repaired = repair_json_string(clean_json)
+                    final_result_dict = json.loads(repaired)
+                    logger.info("JSON parsing successful after repair")
+                except Exception as e:
+                    logger.error(f"JSON Parsing Error: {e}")
+                    raise ValueError(f"Malformed JSON from AI model: {str(e)[:100]}")
 
             # 4. LOG RAW CONTENT FOR DEBUGGING
             try:
