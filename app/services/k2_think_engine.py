@@ -121,20 +121,38 @@ class K2ThinkEngine:
 Start directly with <think> if needed, then output the JSON inside [RESULT] tags.
 """
 
-            # 3. Appel au modèle
-            chat = ChatOpenAI(
-                model="MBZUAI-IFM/K2-Think-v2",
-                openai_api_key=settings.K2_THINK_API_KEY,
-                openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0.1,
-                max_tokens=16000,
-                timeout=400,
-                max_retries=2 
-            )
+            # 3. Appel au modèle (avec Retry Adaptatif en cas de Timeout)
+            chat_config = {
+                "model": "MBZUAI-IFM/K2-Think-v2",
+                "openai_api_key": settings.K2_THINK_API_KEY,
+                "openai_api_base": settings.K2_THINK_API_URL,
+                "temperature": 0.1,
+                "max_tokens": 12000,
+                "timeout": 110, # Juste en dessous des 120s de Cloudflare pour catcher l'erreur proprement
+                "max_retries": 0 
+            }
 
             logger.info("Sending request to K2 Think...")
-            response = await chat.ainvoke([HumanMessage(content=instruction_prompt)])
-            raw_content = response.content
+            raw_content = ""
+            try:
+                chat = ChatOpenAI(**chat_config)
+                response = await chat.ainvoke([HumanMessage(content=instruction_prompt)])
+                raw_content = response.content
+            except Exception as e:
+                if "524" in str(e) or "timeout" in str(e).lower():
+                    logger.warning("K2 API Timeout detected. Retrying with reduced token budget...")
+                    # Réduction drastique pour passer le timeout
+                    chat_config["max_tokens"] = 4000
+                    chat_config["timeout"] = 115
+                    # On réduit aussi le contexte dans le prompt pour la tentative de secours
+                    emergency_context = "\n\n".join([f"--- DOC: {d.title} ---\n{d.content[:3000]}" for d in request.documents])
+                    emergency_prompt = instruction_prompt.replace(context, emergency_context)
+                    
+                    chat = ChatOpenAI(**chat_config)
+                    response = await chat.ainvoke([HumanMessage(content=emergency_prompt)])
+                    raw_content = response.content
+                else:
+                    raise e
             logger.info(f"Raw K2 response length: {len(raw_content)}")
 
             # 4. Extraction du JSON
