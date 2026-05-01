@@ -4,6 +4,10 @@ Hackathon: K2 Think API est le seul moteur d'IA du projet
 """
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+import json
+import os
+import re
+import traceback
 from app.models.schemas import (
     ScientificDocument, AnalysisResult, AnalysisRequest, AuditLog,
     ComparativeAnalysis, ExperimentalProtocol, ResearchGap, CounterHypothesis,
@@ -12,8 +16,8 @@ from app.models.schemas import (
 from app.reasoning.k2_client import K2ThinkClient
 from app.core.settings import settings
 from app.core.logging import logger
-import json
-import os
+from langchain_openai import ChatOpenAI
+from langchain.schema import HumanMessage
 
 
 class K2ThinkEngine:
@@ -46,10 +50,6 @@ class K2ThinkEngine:
         """
         Processus complet d'analyse utilisant LangChain + K2 Think API
         """
-        from langchain_openai import ChatOpenAI
-        from langchain.prompts import ChatPromptTemplate
-        from langchain_core.output_parsers import JsonOutputParser
-        
         request_id = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.reasoning_trace = []
         self.audit_logs = []
@@ -57,38 +57,17 @@ class K2ThinkEngine:
         try:
             logger.info(f"K2 Think Analysis (LangChain Orchestrated) Start: {request_id}")
             
-            # 1. Configuration du LLM K2 via l'interface OpenAI de LangChain
-            llm = ChatOpenAI(
-                model="MBZUAI-IFM/K2-Think-v2",
-                openai_api_key=settings.K2_THINK_API_KEY,
-                openai_api_base=settings.K2_THINK_API_URL,
-                temperature=0,
-                max_tokens=None,
-                timeout=300,
-                max_retries=3 
-            )
-
-            # 2. Préparation du contexte documentaire
+            # 1. Préparation du contexte documentaire
             context_parts = []
             for doc in request.documents:
-                snippet = doc.content[:6000] # Reduced to save token budget
+                snippet = doc.content[:6000] # Limite pour économiser les tokens
                 first_author = doc.authors[0].split()[-1] if doc.authors else "Unknown"
                 year = "n.d."
                 citation_key = f"({first_author}, {year})"
                 context_parts.append(f"--- DOCUMENT: {doc.title} | KEY: {citation_key} ---\n{snippet}")
             context = "\n\n".join(context_parts)
 
-            # 3. Récupération de la mémoire sémantique
-            past_context = ""
-            if request.user_id:
-                query = f"Research regarding: {', '.join([d.title for d in request.documents[:2]])}"
-                memories = await self.memory_service.search_memory(request.user_id, query)
-                if memories:
-                    past_context = "\n- ".join(memories)
-
-            parser = JsonOutputParser()
-            
-            # 4. Prompt autoritaire pour éviter la paresse (Laziness) - Version améliorée
+            # 2. Prompt (Optimisé pour K2-Think-v2)
             instruction_prompt = f"""You are a senior scientific investigator. Analyze the provided research documents and produce a detailed comparative analysis.
 
 [DOCUMENTS]
@@ -102,15 +81,15 @@ class K2ThinkEngine:
 [FORMATTING RULES]
 - Output ONLY a valid JSON object.
 - NO preamble, NO explanations before or after JSON.
-- NO single quotes in the JSON.
+- NO single quotes in the JSON keys or values.
 - Use valid citations e.g. (Author, Year).
 
 [JSON SCHEMA]
 {{
-  "reasoning_summary": "Extensive 200+ word technical summary",
+  "reasoning_summary": "Extensive 200+ word technical summary of findings",
   "confidence_overall": 0.95,
   "comparative_analysis": {{
-    "document_ids": ["doc1", "doc2"],
+    "document_ids": {json.dumps([doc.id for doc in request.documents])},
     "divergences": [
       {{ "variable": "name", "finding_a": "...", "finding_b": "...", "impact": "..." }}
     ],
@@ -122,7 +101,9 @@ class K2ThinkEngine:
     "confidence_score": 0.9
   }},
   "research_gaps": [],
-  "counter_hypotheses": [],
+  "counter_hypotheses": [
+    {{ "hypothesis": "...", "rationale": "...", "potential_bias": "...", "validation_experiment": "...", "confidence_against": 0.5 }}
+  ],
   "proposed_protocol": {{
     "title": "...",
     "objective": "...",
@@ -131,7 +112,7 @@ class K2ThinkEngine:
     ]
   }},
   "strategic_recommendations": [],
-  "reasoning_trace": "Brief internal logic summary",
+  "reasoning_trace": "Internal logic summary",
   "confidence_overall": 0.95
 }}
 
@@ -139,229 +120,126 @@ class K2ThinkEngine:
 Start directly with <think> if needed, then output the JSON inside [RESULT] tags.
 """
 
-            # 5. Appel au modèle (on met tout dans le message humain pour plus d'impact)
+            # 3. Appel au modèle
             chat = ChatOpenAI(
                 model="MBZUAI-IFM/K2-Think-v2",
                 openai_api_key=settings.K2_THINK_API_KEY,
                 openai_api_base=settings.K2_THINK_API_URL,
                 temperature=0.1,
-                max_tokens=16000, # Increased for larger responses
+                max_tokens=16000,
                 timeout=400,
                 max_retries=2 
             )
 
-            logger.info("Sending command-style request to K2 Think (High-Token Mode)...")
-            from langchain.schema import HumanMessage
-            response = await chat.ainvoke([
-                HumanMessage(content=instruction_prompt)
-            ])
-
-            # NETTOYAGE MANUEL DU JSON (Crucial pour les modèles "Thinking")
+            logger.info("Sending request to K2 Think...")
+            response = await chat.ainvoke([HumanMessage(content=instruction_prompt)])
             raw_content = response.content
-            
-            # 5. NETTOYAGE ET RÉPARATION DU JSON (Version améliorée)
-            import re
-            import json
-
             logger.info(f"Raw K2 response length: {len(raw_content)}")
-            logger.debug(f"Raw K2 response preview: {raw_content[:500]}...")
 
-            # 0. STRIP OUT THINK TAGS TO PREVENT BRACE MATCHING INSIDE IT
-            if "<think>" in raw_content and "</think>" in raw_content:
-                raw_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL)
-                logger.info("Stripped <think> block from response")
-            elif "<think>" in raw_content:
-                logger.warning("Found <think> but no </think>. The response was likely truncated. Attempting to extract JSON from what we have.")
-                raw_content = re.sub(r'<think>.*', '', raw_content, flags=re.DOTALL)
-
-            # 1. Tentative d'extraction via bloc markdown standard
-            json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', raw_content, re.DOTALL)
+            # 4. Extraction du JSON
+            clean_json = ""
             
-            if json_block_match:
-                clean_json = json_block_match.group(1).strip()
-                logger.info("JSON extracted from markdown block")
-            # 2. Tentative d'extraction via balises [RESULT]
-            else:
-                result_match = re.search(r'\[RESULT\]\s*(.*)', raw_content, re.DOTALL | re.IGNORECASE)
-                if result_match:
-                    extracted = result_match.group(1).strip()
-                    # Find the actual JSON block within this
-                    json_inner = re.search(r'(\{.*\})', extracted, re.DOTALL)
-                    if json_inner:
-                        clean_json = json_inner.group(1).strip()
-                        logger.info("JSON extracted from [RESULT] tag")
-                else:
-                    # 3. Recherche du bloc JSON le plus large possible
-                    start_idx = raw_content.find('{')
-                    end_idx = raw_content.rfind('}')
-                    if start_idx != -1:
-                        if end_idx != -1 and end_idx > start_idx:
-                            clean_json = raw_content[start_idx:end_idx + 1]
-                            logger.info("JSON extracted by finding outermost braces")
-                        else:
-                            # TRUNCATED JSON CASE: Start found but no end
-                            logger.warning("JSON appears truncated (start found, no end). Attempting repair.")
-                            clean_json = raw_content[start_idx:]
-                    else:
-                        clean_json = ""
+            # Nettoyage des balises de pensée
+            processed_content = raw_content
+            if "<think>" in processed_content and "</think>" in processed_content:
+                processed_content = re.sub(r'<think>.*?</think>', '', processed_content, flags=re.DOTALL)
+            elif "<think>" in processed_content:
+                processed_content = re.sub(r'<think>.*', '', processed_content, flags=re.DOTALL)
 
+            # Recherche de bloc JSON
+            # a) Balises [RESULT]
+            result_match = re.search(r'\[RESULT\]\s*(.*)', processed_content, re.DOTALL | re.IGNORECASE)
+            if result_match:
+                candidate = result_match.group(1).strip()
+                json_inner = re.search(r'(\{.*\})', candidate, re.DOTALL)
+                if json_inner:
+                    clean_json = json_inner.group(1).strip()
+
+            # b) Blocs Markdown
             if not clean_json:
-                self._log_reasoning("ERROR", "Parsing", f"Full content was: {raw_content[:2000]}...")
-                logger.error(f"No JSON block found in content. Full content preview: {raw_content[:1000]}...")
-                raise ValueError("The AI model did not return a valid scientific result block. Please try again.")
+                json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', processed_content, re.DOTALL)
+                if json_block_match:
+                    clean_json = json_block_match.group(1).strip()
 
-            # 6. RÉPARATION AUTOMATIQUE SI TRONQUÉ
-            def repair_json_string(s):
-                s = s.strip()
-                # Count braces
-                open_braces = s.count('{')
-                close_braces = s.count('}')
-                open_brackets = s.count('[')
-                close_brackets = s.count(']')
-                
-                # Close arrays first
-                while open_brackets > close_brackets:
-                    s += ']'
-                    close_brackets += 1
-                # Then close objects
-                while open_braces > close_braces:
-                    s += '}'
-                    close_braces += 1
-                return s
-
-            try:
-                final_result_dict = json.loads(clean_json)
-                logger.info("JSON parsing successful")
-            except json.JSONDecodeError:
-                logger.warning("Standard JSON parsing failed, attempting repair...")
-                try:
-                    repaired = repair_json_string(clean_json)
-                    final_result_dict = json.loads(repaired)
-                    logger.info("JSON parsing successful after repair")
-                except Exception as e:
-                    logger.error(f"JSON Parsing Error: {e}")
-                    raise ValueError(f"Malformed JSON from AI model: {str(e)[:100]}")
-
-            # 4. LOG RAW CONTENT FOR DEBUGGING
-            try:
-                os.makedirs("logs", exist_ok=True)
-                with open("logs/k2_raw_response.log", "a", encoding="utf-8") as f:
-                    f.write(f"\n--- ANALYSIS {request_id} ({datetime.now().isoformat()}) ---\n")
-                    f.write(raw_content)
-                    f.write("\n--- END ---\n")
-            except Exception as log_err:
-                logger.error(f"Failed to log raw response: {log_err}")
-
-            # 5. Nettoyage final des résidus de Markdown et erreurs LLM communes
-            clean_json = clean_json.replace("```json", "").replace("```", "").strip()
-            clean_json = re.sub(r'^\s*//.*$', '', clean_json, flags=re.MULTILINE)
-            clean_json = re.sub(r',\s*([\]\}])', r'\1', clean_json)
-
-            logger.info(f"Cleaned JSON length: {len(clean_json)}")
-            logger.debug(f"Cleaned JSON preview: {clean_json[:200]}...")
-
-            try:
-                k2_analysis = json.loads(clean_json)
-                logger.info("JSON parsing successful")
-            except json.JSONDecodeError as e:
-                logger.error(f"JSON.LOADS failed: {e}")
-                logger.error(f"Failed JSON content: {clean_json}")
-
-                # Tentative ultime : nettoyage avancé et correction d'erreurs courantes LLM
-                try:
-                    clean_json_fixed = clean_json.replace("```json", "").replace("```", "").strip()
-
-                    # Fix single quotes around keys: {'key': ...} -> {"key": ...}
-                    clean_json_fixed = re.sub(r"([{,]\s*)'([^']+)'(\s*:)", r'\1"\2"\3', clean_json_fixed)
-
-                    # Fix unquoted keys: {key: ...} -> {"key": ...}
-                    clean_json_fixed = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', clean_json_fixed)
-
-                    # Fix trailing commas before closing braces/brackets
-                    clean_json_fixed = re.sub(r',\s*(\}|\])', r'\1', clean_json_fixed)
-
-                    logger.info("Attempting to parse with fixes applied")
-                    k2_analysis = json.loads(clean_json_fixed)
-                    logger.info("JSON parsing successful after fixes")
-
-                except json.JSONDecodeError as e2:
-                    logger.error(f"All JSON parsing attempts failed. Error: {e2}")
-                    
-                    # ULTIMATE ATTEMPT: If "Extra data", try to take only the first object
-                    if "Extra data" in str(e2):
-                        try:
-                            import re
-                            # Simple approach: find the first matching brace
-                            count = 0
-                            end_pos = -1
-                            for i, char in enumerate(clean_json_fixed):
-                                if char == '{': count += 1
-                                elif char == '}':
-                                    count -= 1
-                                    if count == 0:
-                                        end_pos = i + 1
-                                        break
-                            if end_pos > 0:
-                                logger.info(f"Extra data detected. Attempting to parse first {end_pos} chars.")
-                                k2_analysis = json.loads(clean_json_fixed[:end_pos])
-                                logger.info("JSON parsing successful using first object extraction")
-                        except Exception as e3:
-                            logger.error(f"First object extraction failed: {e3}")
-                            k2_analysis = None
+            # c) Accolades les plus larges
+            if not clean_json:
+                start_idx = processed_content.find('{')
+                end_idx = processed_content.rfind('}')
+                if start_idx != -1:
+                    if end_idx != -1 and end_idx > start_idx:
+                        clean_json = processed_content[start_idx:end_idx + 1]
                     else:
-                        k2_analysis = None
+                        clean_json = processed_content[start_idx:] # Tronqué
 
-                    if not k2_analysis:
-                        logger.error(f"Final cleaned JSON was: {clean_json_fixed[:1000]}...")
+            # 5. Parsing et Réparation
+            k2_analysis = None
+            if clean_json:
+                try:
+                    # Tentative 1: Standard
+                    k2_analysis = json.loads(clean_json)
+                except json.JSONDecodeError:
+                    # Tentative 2: Réparation (Fermeture des balises)
+                    logger.warning("JSON parsing failed, attempting auto-repair...")
+                    repaired = clean_json.strip()
+                    open_braces = repaired.count('{')
+                    close_braces = repaired.count('}')
+                    open_brackets = repaired.count('[')
+                    close_brackets = repaired.count(']')
+                    while open_brackets > close_brackets:
+                        repaired += ']'
+                        close_brackets += 1
+                    while open_braces > close_braces:
+                        repaired += '}'
+                        close_braces += 1
+                    
+                    try:
+                        k2_analysis = json.loads(repaired)
+                        logger.info("JSON parsing successful after repair")
+                    except Exception as e:
+                        logger.error(f"Auto-repair failed: {e}")
 
-                    # Si tout échoue, créer un résultat par défaut avec les informations disponibles
-                    logger.warning("Creating fallback analysis result due to JSON parsing failure")
-                    k2_analysis = {
-                        "reasoning_summary": f"Analysis completed but JSON parsing failed. Raw response length: {len(raw_content)} characters. Error: {str(e2)}",
-                        "confidence_score": 0.5,
+            # 6. Fallback en cas d'échec total de parsing
+            if not k2_analysis:
+                logger.error("All JSON parsing attempts failed. Creating technical fallback.")
+                self._log_reasoning("ERROR", "Parsing", f"Raw content snippet: {raw_content[:1000]}...")
+                k2_analysis = {
+                    "reasoning_summary": f"ERREUR DE PARSING. Voici le début de la réponse brute : {raw_content[:1000]}...",
+                    "confidence_overall": 0.1,
+                    "comparative_analysis": {
+                        "document_ids": [doc.id for doc in request.documents],
                         "divergences": [],
                         "contradictions": [],
-                        "common_findings": ["Analysis attempted but result parsing failed"],
+                        "common_findings": ["Échec de l'extraction structurée"],
                         "research_gaps": [],
-                        "counter_hypotheses": [],
-                        "protocol": {
-                            "title": "Analysis Failed - Manual Review Required",
-                            "hypothesis": "Unable to parse AI response",
-                            "objective": "Manual review of raw AI output needed",
-                            "expected_outcomes": "Manual analysis required",
-                            "statistical_analysis_plan": "TBD",
-                            "success_criteria": ["Manual review completed"],
-                            "estimated_duration_days": 1.0,
-                            "estimated_budget_usd": 0.0,
-                            "resource_optimization": "N/A",
-                            "material_constraints": "N/A",
-                            "alternative_approaches": ["Manual analysis"],
-                            "risk_assessment": {"parsing_failure": "Manual intervention required"},
-                            "variables": [],
-                            "steps": []
-                        },
-                        "recommendations": ["Review raw AI response manually", "Consider retrying analysis"]
-                    }
+                        "confidence_score": 0.1
+                    },
+                    "proposed_protocol": {
+                        "title": "Analyse échouée - Révision manuelle requise",
+                        "objective": "Extraire manuellement les données des logs",
+                        "steps": []
+                    },
+                    "recommendations": ["Réessayez l'analyse", "Vérifiez les documents sources"]
+                }
 
-            # 6. Conversion en schémas internes
-            comparative_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
-            counter_hypotheses = self._convert_k2_to_counter_hypotheses(k2_analysis)
+            # 7. Conversion en objets schemas.py
+            comp_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
+            hypotheses = self._convert_k2_to_counter_hypotheses(k2_analysis)
             protocol = await self._convert_k2_to_protocol(k2_analysis)
             
             result = AnalysisResult(
                 request_id=request_id,
                 documents_analyzed=len(request.documents),
                 reasoning_summary=k2_analysis.get("reasoning_summary", "Analysis completed."),
-                comparative_analysis=comparative_analysis,
-                research_gaps=comparative_analysis.research_gaps,
-                counter_hypotheses=counter_hypotheses,
+                comparative_analysis=comp_analysis,
+                research_gaps=comp_analysis.research_gaps,
+                counter_hypotheses=hypotheses,
                 proposed_protocol=protocol,
-                strategic_recommendations=k2_analysis.get("recommendations", []),
+                strategic_recommendations=k2_analysis.get("recommendations", k2_analysis.get("strategic_recommendations", [])),
                 reasoning_trace=self.reasoning_trace,
-                confidence_overall=k2_analysis.get("confidence_score", 0.85)
+                confidence_overall=k2_analysis.get("confidence_overall", 0.85)
             )
 
-            # 7. Consolidation de la mémoire
+            # 8. Mémoire sémantique
             if request.user_id:
                 try:
                     await self.memory_service.consolidate_analysis(
@@ -375,226 +253,92 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
             return result
 
         except Exception as e:
-            logger.error(f"K2 Think Analysis (LangChain) Failed: {str(e)}")
-            self._log_reasoning("ERROR", "Analysis Failure", str(e))
+            logger.error(f"FATAL K2 Engine Error: {str(e)}")
+            traceback.print_exc()
             raise e
 
-    async def chat(
-        self,
-        message: str,
-        analysis_context: Optional[Dict[str, Any]] = None,
-        history: List[Dict[str, str]] = [],
-        user_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Discussion interactive avec K2 Think sur l'analyse via LangChain
-        """
-        from langchain_openai import ChatOpenAI
-        from langchain.schema import SystemMessage, HumanMessage, AIMessage
-        
-        system_prompt = f"""You are the K2 Think V2 Scientific Assistant. 
-You are discussing a specific scientific analysis with a researcher.
-CONTEXT OF ANALYSIS:
-{json.dumps(analysis_context, indent=2) if analysis_context else "No specific context provided yet."}
-
-Your goal:
-1. Answer questions about the contradictions, gaps, or protocols found.
-2. Provide deeper scientific insights based on the documents.
-3. Help design further investigations.
-
-Keep your tone professional, strategic, and scientifically rigorous.
-"""
-        # ============ LONG-TERM SEMANTIC MEMORY (CHAT) ============
-        if user_id:
-            memories = await self.memory_service.search_memory(user_id, message)
-            if memories:
-                memories_text = "\n- ".join(memories)
-                system_prompt += f"\n\nPAST USER CONTEXT (Relevant to this query):\n- {memories_text}"
-
-        llm = ChatOpenAI(
-            model="MBZUAI-IFM/K2-Think-v2",
-            openai_api_key=settings.K2_THINK_API_KEY,
-            openai_api_base=settings.K2_THINK_API_URL,
-            temperature=0.7
-        )
-
-        messages = [SystemMessage(content=system_prompt)]
-        
-        # Add history
-        for msg in history:
-            if msg["role"] == "user":
-                messages.append(HumanMessage(content=msg["content"]))
-            else:
-                messages.append(AIMessage(content=msg["content"]))
-            
-        # Add current message
-        messages.append(HumanMessage(content=message))
-        
-        response = await llm.ainvoke(messages)
-        content = response.content
-        
-        # Handle reasoning if present
-        reasoning = ""
-        if "</think>" in content:
-            parts = content.split("</think>")
-            reasoning = parts[0].replace("<think>", "").strip()
-            content = parts[-1].strip()
-            
-        return {
-            "answer": content,
-            "reasoning_log": reasoning,
-            "suggested_actions": ["Design further experiments", "Explore related papers", "Stress test this hypothesis"]
-        }
-    
     def _convert_k2_to_comparative_analysis(
         self,
         k2_result: Dict[str, Any],
         docs: List[ScientificDocument]
     ) -> ComparativeAnalysis:
-        """Convertit résultats K2 Think en ComparativeAnalysis"""
+        raw_comp = k2_result.get("comparative_analysis", {})
+        if not isinstance(raw_comp, dict): raw_comp = {}
         
-        # Extraire research gaps depuis K2
-        research_gaps = []
-        for gap in k2_result.get("research_gaps", []):
-            research_gaps.append(ResearchGap(
-                gap_description=gap.get("description", "Research gap"),
-                importance_score=gap.get("importance_score", 0.5),
-                related_variables=gap.get("related_variables", []),
-                suggested_investigation=gap.get("suggested_investigation", "Further research needed"),
-                source_documents=gap.get("source_documents", [doc.id for doc in docs]),
-                citations=gap.get("citations", [])
-            ))
-        
+        gaps = []
+        raw_gaps = k2_result.get("research_gaps", raw_comp.get("research_gaps", []))
+        for gap in raw_gaps:
+            if isinstance(gap, dict):
+                gaps.append(ResearchGap(
+                    gap_description=gap.get("description", "Gap"),
+                    importance_score=gap.get("importance_score", 0.5),
+                    related_variables=gap.get("related_variables", []),
+                    suggested_investigation=gap.get("suggested_investigation", "TBD"),
+                    source_documents=[doc.id for doc in docs],
+                    citations=gap.get("citations", [])
+                ))
+            else:
+                gaps.append(ResearchGap(gap_description=str(gap), source_documents=[doc.id for doc in docs]))
+
         return ComparativeAnalysis(
             document_ids=[doc.id for doc in docs],
-            divergences=k2_result.get("divergences", []),
-            contradictions=k2_result.get("contradictions", []),
-            common_findings=k2_result.get("common_findings", []),
-            research_gaps=research_gaps,
-            confidence_score=k2_result.get("confidence_score", 0.8)
+            divergences=raw_comp.get("divergences", []),
+            contradictions=raw_comp.get("contradictions", []),
+            common_findings=raw_comp.get("common_findings", []),
+            research_gaps=gaps,
+            confidence_score=raw_comp.get("confidence_score", 0.8)
         )
-    
+
     def _convert_k2_to_counter_hypotheses(
         self,
         k2_result: Dict[str, Any]
     ) -> List[CounterHypothesis]:
-        """Convertit résultats K2 Think en CounterHypotheses"""
-        
-        counter_hypotheses = []
-        for counter in k2_result.get("counter_hypotheses", []):
-            counter_hypotheses.append(CounterHypothesis(
-                hypothesis=counter.get("hypothesis", "Alternative hypothesis"),
-                rationale=counter.get("rationale", "Based on K2 Think analysis"),
-                potential_bias=counter.get("potential_bias", "Identified by K2 Think"),
-                validation_experiment=counter.get("validation_experiment", "Empirical validation recommended"),
-                confidence_against=counter.get("confidence_against", 0.5),
-                citations=counter.get("citations", [])
-            ))
-        
-        return counter_hypotheses
-    
+        hypotheses = []
+        for h in k2_result.get("counter_hypotheses", []):
+            if isinstance(h, dict):
+                hypotheses.append(CounterHypothesis(
+                    hypothesis=h.get("hypothesis", "Hypothesis"),
+                    rationale=h.get("rationale", ""),
+                    potential_bias=h.get("potential_bias", ""),
+                    validation_experiment=h.get("validation_experiment", ""),
+                    confidence_against=h.get("confidence_against", 0.5)
+                ))
+        return hypotheses
+
     async def _convert_k2_to_protocol(
         self,
         k2_result: Dict[str, Any]
     ) -> ExperimentalProtocol:
-        """Convertit résultats K2 Think en ExperimentalProtocol complet"""
+        proto_data = k2_result.get("proposed_protocol", k2_result.get("protocol", {}))
+        if not isinstance(proto_data, dict): proto_data = {}
         
-        protocol_data = k2_result.get("protocol", {})
-        
-        def ensure_list(val):
-            if val is None: return []
-            if isinstance(val, str): return [val]
-            if not isinstance(val, list): return [str(val)]
-            return val
-        
-        # Construire les étapes
         steps = []
-        for i, step_data in enumerate(protocol_data.get("steps", []), 1):
-            steps.append(ExperimentalStep(
-                step_number=i,
-                description=step_data.get("description", f"Step {i}"),
-                duration_hours=step_data.get("duration_hours"),
-                materials=ensure_list(step_data.get("materials", [])),
-                critical_parameters=ensure_list(step_data.get("critical_parameters", [])),
-                validation_criteria=step_data.get("validation_criteria", "Protocol requirements"),
-                risk_level=step_data.get("risk_level", "medium"),
-                contingency_plan=step_data.get("contingency_plan")
-            ))
-        
-        # Construire les variables
-        variables = []
-        for var_data in protocol_data.get("variables", []):
-            possible_vals = var_data.get("possible_values")
-            if isinstance(possible_vals, str):
-                possible_vals = [possible_vals]
-                
-            variables.append(ExperimentalVariable(
-                name=var_data.get("name", "Variable"),
-                type=var_data.get("type", "independent"),
-                measurement_unit=var_data.get("measurement_unit"),
-                measurement_method=var_data.get("measurement_method", "TBD"),
-                possible_values=possible_vals
-            ))
-        
-        # Robust parsing for duration and budget
-        def parse_float(val, default):
-            if val is None: return default
-            if isinstance(val, (int, float)): return float(val)
-            try:
-                cleaned = str(val).replace('$', '').replace(',', '').replace(' ', '')
-                import re
-                match = re.search(r"[-+]?\d*\.\d+|\d+", cleaned)
-                if match:
-                    return float(match.group())
-                return default
-            except:
-                return default
+        for i, s in enumerate(proto_data.get("steps", []), 1):
+            if isinstance(s, dict):
+                steps.append(ExperimentalStep(
+                    step_number=i,
+                    description=s.get("description", f"Step {i}"),
+                    duration_hours=float(s.get("duration_hours", 1)),
+                    materials=s.get("materials", []),
+                    critical_parameters=s.get("critical_parameters", [])
+                ))
 
         return ExperimentalProtocol(
-            title=protocol_data.get("title", "K2 Think Generated Protocol"),
-            hypothesis=protocol_data.get("hypothesis", "To be determined"),
-            objective=protocol_data.get("objective", "Research objective"),
-            variables=variables,
+            title=proto_data.get("title", "New Protocol"),
+            objective=proto_data.get("objective", "Objective"),
             steps=steps,
-            expected_outcomes=protocol_data.get("expected_outcomes", "To be evaluated"),
-            statistical_analysis_plan=protocol_data.get("statistical_analysis_plan", "TBD"),
-            success_criteria=ensure_list(protocol_data.get("success_criteria", ["Protocol completed as designed"])),
-            estimated_duration_days=parse_float(protocol_data.get("estimated_duration_days"), 30.0),
-            estimated_budget_usd=parse_float(protocol_data.get("estimated_budget_usd"), None),
-            resource_optimization=protocol_data.get("resource_optimization"),
-            material_constraints=ensure_list(protocol_data.get("material_constraints", [])),
-            alternative_approaches=ensure_list(protocol_data.get("alternative_approaches", [])),
-            risk_assessment=protocol_data.get("risk_assessment", {})
+            hypothesis=proto_data.get("hypothesis", "TBD"),
+            expected_outcomes=proto_data.get("expected_outcomes", "TBD")
         )
-    
-    def _log_reasoning(
-        self,
-        phase: str,
-        step: str,
-        description: str
-    ) -> None:
-        """Enregistre trace de raisonnement pour transparence"""
-        entry = {
-            "phase": phase,
-            "step": step,
-            "description": description,
-            "timestamp": datetime.now().isoformat()
-        }
-        self.reasoning_trace.append(entry)
+
+    def _log_reasoning(self, phase: str, step: str, description: str):
+        self.reasoning_trace.append({
+            "phase": phase, "step": step, "description": description, "timestamp": datetime.now().isoformat()
+        })
         logger.debug(f"[{phase}] {step}: {description}")
-    
-    def _add_audit_log(
-        self,
-        action: str,
-        decision: str,
-        reasoning: str
-    ) -> None:
-        """Ajoute entrée au journal d'audit"""
-        log = AuditLog(
-            timestamp=datetime.now().isoformat(),
-            step=action,
-            decision=decision,
-            reasoning=reasoning,
-            model_used="K2_Think_API"
-        )
-        self.audit_logs.append(log)
+
+    async def chat(self, message: str, analysis_context: Optional[Dict[str, Any]] = None, history: List[Dict[str, str]] = [], user_id: Optional[str] = None) -> Dict[str, Any]:
+        # Minimal chat implementation for K2
+        llm = ChatOpenAI(model="MBZUAI-IFM/K2-Think-v2", openai_api_key=settings.K2_THINK_API_KEY, openai_api_base=settings.K2_THINK_API_URL)
+        resp = await llm.ainvoke([HumanMessage(content=message)])
+        return {"answer": resp.content, "reasoning_log": "", "suggested_actions": []}
