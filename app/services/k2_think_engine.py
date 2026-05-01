@@ -97,10 +97,11 @@ class K2ThinkEngine:
       {{ "topic": "name", "conflict": "...", "resolution_path": "..." }}
     ],
     "common_findings": ["Finding 1", "Finding 2"],
-    "research_gaps": ["Gap 1", "Gap 2"],
     "confidence_score": 0.9
   }},
-  "research_gaps": [],
+  "research_gaps": [
+    {{ "description": "Gap description", "importance_score": 0.8, "related_variables": [] }}
+  ],
   "counter_hypotheses": [
     {{ "hypothesis": "...", "rationale": "...", "potential_bias": "...", "validation_experiment": "...", "confidence_against": 0.5 }}
   ],
