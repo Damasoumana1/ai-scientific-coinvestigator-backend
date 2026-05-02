@@ -119,10 +119,10 @@ class K2ThinkEngine:
 }}
 
 [FINAL INSTRUCTION]
-You MUST output the JSON block starting with {{ and ending with }}.
-If you need to reason first, you MUST wrap your entire reasoning inside <think>...</think> tags.
-Do NOT output any conversational text or explanations outside of the JSON block or the <think> tags.
-Keep your reasoning concise to avoid token truncation.
+YOU ARE STRICTLY FORBIDDEN FROM EXPLAINING YOUR REASONING.
+YOU MUST RETURN ONLY THE RAW JSON OBJECT.
+START YOUR RESPONSE DIRECTLY WITH {{ AND END WITH }}.
+DO NOT USE <think> TAGS. DO NOT CONVERSE.
 """
 
 
@@ -165,8 +165,9 @@ Keep your reasoning concise to avoid token truncation.
                     raise e
             logger.info(f"Raw K2 response length: {len(raw_content)}")
 
-            # 4. Extraction du JSON
+            # 4. Extraction du JSON (Méthode robuste)
             clean_json = ""
+            k2_analysis = None
             
             # Nettoyage des balises de pensée
             processed_content = raw_content
@@ -175,103 +176,121 @@ Keep your reasoning concise to avoid token truncation.
             elif "<think>" in processed_content:
                 processed_content = re.sub(r'<think>.*', '', processed_content, flags=re.DOTALL)
 
-            # Recherche de bloc JSON
-            # a) Balises [RESULT]
+            candidates = []
+            
+            # Stratégie 1 : Chercher le vrai début du JSON (via reasoning_summary)
+            schema_match = re.search(r'(\{\s*["\']reasoning_summary["\'].*)', processed_content, re.DOTALL | re.IGNORECASE)
+            if schema_match:
+                cand = schema_match.group(1)
+                end_idx = cand.rfind('}')
+                if end_idx != -1:
+                    candidates.append(cand[:end_idx + 1])
+                else:
+                    candidates.append(cand) # Truncated
+            
+            # Stratégie 2 : Blocs Markdown (prendre le DERNIER, car l'IA met souvent son JSON à la fin)
+            json_blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', processed_content, re.DOTALL | re.IGNORECASE)
+            if json_blocks:
+                candidates.append(json_blocks[-1].strip())
+                # S'il y a plusieurs blocs, on peut aussi tester l'avant-dernier etc.
+                if len(json_blocks) > 1:
+                    candidates.append(json_blocks[0].strip())
+                    
+            # Stratégie 3 : Balise [RESULT]
             result_match = re.search(r'\[RESULT\]\s*(.*)', processed_content, re.DOTALL | re.IGNORECASE)
             if result_match:
-                candidate = result_match.group(1).strip()
-                json_inner = re.search(r'(\{.*\})', candidate, re.DOTALL)
+                cand = result_match.group(1).strip()
+                json_inner = re.search(r'(\{.*\})', cand, re.DOTALL)
                 if json_inner:
-                    clean_json = json_inner.group(1).strip()
+                    candidates.append(json_inner.group(1).strip())
+                    
+            # Stratégie 4 : Le plus grand bloc d'accolades (fallback si les autres échouent)
+            start_idx = processed_content.find('{')
+            end_idx = processed_content.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                candidates.append(processed_content[start_idx:end_idx + 1])
 
-            # b) Blocs Markdown
-            if not clean_json:
-                json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', processed_content, re.DOTALL)
-                if json_block_match:
-                    clean_json = json_block_match.group(1).strip()
+            # Fonction utilitaire pour réparer le JSON
+            def repair_json(text):
+                repaired = text.strip()
+                open_braces = repaired.count('{')
+                close_braces = repaired.count('}')
+                open_brackets = repaired.count('[')
+                close_brackets = repaired.count(']')
+                while open_brackets > close_brackets:
+                    repaired += ']'
+                    close_brackets += 1
+                while open_braces > close_braces:
+                    repaired += '}'
+                    close_braces += 1
+                return repaired
 
-            # c) Accolades les plus larges, mais en s'assurant que ça ressemble à notre schéma
-            if not clean_json:
-                # Chercher un bloc qui contient nos clés spécifiques pour éviter de capturer des exemples dans le texte
-                schema_match = re.search(r'(\{\s*(?:"|\')reasoning_summary(?:"|\').*)', processed_content, re.DOTALL | re.IGNORECASE)
-                if schema_match:
-                    candidate = schema_match.group(1)
-                    end_idx = candidate.rfind('}')
-                    if end_idx != -1:
-                        clean_json = candidate[:end_idx + 1]
-                    else:
-                        clean_json = candidate # Tronqué
-                else:
-                    # Fallback classique
-                    start_idx = processed_content.find('{')
-                    end_idx = processed_content.rfind('}')
-                    if start_idx != -1:
-                        if end_idx != -1 and end_idx > start_idx:
-                            clean_json = processed_content[start_idx:end_idx + 1]
-                        else:
-                            clean_json = processed_content[start_idx:] # Tronqué
-
-            # 5. Parsing et Réparation
-            k2_analysis = None
-            if clean_json:
+            # 5. Parsing
+            for cand in candidates:
+                if not cand.strip():
+                    continue
+                    
+                # Tentative directe
                 try:
-                    # Tentative 1: Standard
-                    k2_analysis = json.loads(clean_json)
+                    k2_analysis = json.loads(cand)
+                    clean_json = cand
+                    break
                 except json.JSONDecodeError as e:
+                    # Troncature si "Extra data"
                     if "Extra data" in str(e) and hasattr(e, "pos"):
                         try:
-                            logger.warning(f"Extra data found at pos {e.pos}, attempting to truncate...")
-                            k2_analysis = json.loads(clean_json[:e.pos].strip())
+                            k2_analysis = json.loads(cand[:e.pos].strip())
+                            clean_json = cand[:e.pos].strip()
+                            break
                         except Exception:
                             pass
-                            
-                    if not k2_analysis:
-                        # Tentative 2: Réparation (Fermeture des balises)
-                        logger.warning("JSON parsing failed, attempting auto-repair...")
-                    repaired = clean_json.strip()
-                    open_braces = repaired.count('{')
-                    close_braces = repaired.count('}')
-                    open_brackets = repaired.count('[')
-                    close_brackets = repaired.count(']')
-                    while open_brackets > close_brackets:
-                        repaired += ']'
-                        close_brackets += 1
-                    while open_braces > close_braces:
-                        repaired += '}'
-                        close_braces += 1
-                    
+                
+                # Tentative avec réparation
+                repaired_cand = repair_json(cand)
+                try:
+                    k2_analysis = json.loads(repaired_cand)
+                    clean_json = repaired_cand
+                    break
+                except Exception:
+                    # Tentative avec ast.literal_eval pour Python dicts
                     try:
-                        k2_analysis = json.loads(repaired)
-                        logger.info("JSON parsing successful after repair")
-                    except Exception as e:
-                        try:
-                            # Try python eval for single quotes and trailing commas
-                            k2_analysis = ast.literal_eval(repaired)
-                            logger.info("JSON parsing successful using ast.literal_eval")
-                        except Exception as e2:
-                            logger.error(f"Auto-repair failed: {e}")
+                        k2_analysis = ast.literal_eval(repaired_cand)
+                        clean_json = repaired_cand
+                        break
+                    except Exception:
+                        pass
+            
+            if k2_analysis:
+                logger.info("JSON successfully extracted and parsed.")
 
             # 6. Fallback en cas d'échec total de parsing
             if not k2_analysis:
                 logger.error("All JSON parsing attempts failed. Creating technical fallback.")
                 self._log_reasoning("ERROR", "Parsing", f"Raw content snippet: {raw_content[:1000]}...")
+                
+                # Salvage text to show to the user instead of a generic error
+                salvaged_text = processed_content.strip()
+                if not salvaged_text:
+                    salvaged_text = raw_content.strip()
+                    
                 k2_analysis = {
-                    "reasoning_summary": f"ERREUR DE PARSING. Voici le début de la réponse brute : {raw_content[:1000]}...",
-                    "confidence_overall": 0.1,
+                    "reasoning_summary": salvaged_text if len(salvaged_text) > 50 else f"Failed to extract structured data. Raw response: {raw_content[:1000]}",
+                    "confidence_overall": 0.5,
                     "comparative_analysis": {
                         "document_ids": [doc.id for doc in request.documents],
                         "divergences": [],
                         "contradictions": [],
-                        "common_findings": ["Échec de l'extraction structurée"],
-                        "research_gaps": [],
-                        "confidence_score": 0.1
+                        "common_findings": ["Partial analysis - structured data unavailable"],
+                        "confidence_score": 0.5
                     },
+                    "research_gaps": [],
+                    "counter_hypotheses": [],
                     "proposed_protocol": {
-                        "title": "Analyse échouée - Révision manuelle requise",
-                        "objective": "Extraire manuellement les données des logs",
+                        "title": "Protocol Generation Failed",
+                        "objective": "The AI generated text but could not format the experimental protocol correctly.",
                         "steps": []
                     },
-                    "recommendations": ["Réessayez l'analyse", "Vérifiez les documents sources"]
+                    "recommendations": ["Try reducing the number of documents", "The AI generated text but failed to format it as JSON"]
                 }
 
             # 7. Conversion en objets schemas.py
