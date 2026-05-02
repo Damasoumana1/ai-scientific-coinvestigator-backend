@@ -119,8 +119,11 @@ class K2ThinkEngine:
 }}
 
 [FINAL INSTRUCTION]
-Start directly with <think> if needed, then output the JSON inside [RESULT] tags.
-"""
+You MUST output the JSON block starting with { and ending with }.
+If you need to reason first, you MUST wrap your entire reasoning inside <think>...</think> tags.
+Do NOT output any conversational text or explanations outside of the JSON block or the <think> tags.
+Keep your reasoning concise to avoid token truncation.
+
 
             # 3. Appel au modèle (avec Retry Adaptatif en cas de Timeout)
             chat_config = {
@@ -186,15 +189,26 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
                 if json_block_match:
                     clean_json = json_block_match.group(1).strip()
 
-            # c) Accolades les plus larges
+            # c) Accolades les plus larges, mais en s'assurant que ça ressemble à notre schéma
             if not clean_json:
-                start_idx = processed_content.find('{')
-                end_idx = processed_content.rfind('}')
-                if start_idx != -1:
-                    if end_idx != -1 and end_idx > start_idx:
-                        clean_json = processed_content[start_idx:end_idx + 1]
+                # Chercher un bloc qui contient nos clés spécifiques pour éviter de capturer des exemples dans le texte
+                schema_match = re.search(r'(\{\s*(?:"|\')reasoning_summary(?:"|\').*)', processed_content, re.DOTALL | re.IGNORECASE)
+                if schema_match:
+                    candidate = schema_match.group(1)
+                    end_idx = candidate.rfind('}')
+                    if end_idx != -1:
+                        clean_json = candidate[:end_idx + 1]
                     else:
-                        clean_json = processed_content[start_idx:] # Tronqué
+                        clean_json = candidate # Tronqué
+                else:
+                    # Fallback classique
+                    start_idx = processed_content.find('{')
+                    end_idx = processed_content.rfind('}')
+                    if start_idx != -1:
+                        if end_idx != -1 and end_idx > start_idx:
+                            clean_json = processed_content[start_idx:end_idx + 1]
+                        else:
+                            clean_json = processed_content[start_idx:] # Tronqué
 
             # 5. Parsing et Réparation
             k2_analysis = None
