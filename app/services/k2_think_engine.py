@@ -119,7 +119,7 @@ class K2ThinkEngine:
 }}
 
 [FINAL INSTRUCTION]
-You MUST output the JSON block starting with { and ending with }.
+You MUST output the JSON block starting with {{ and ending with }}.
 If you need to reason first, you MUST wrap your entire reasoning inside <think>...</think> tags.
 Do NOT output any conversational text or explanations outside of the JSON block or the <think> tags.
 Keep your reasoning concise to avoid token truncation.
