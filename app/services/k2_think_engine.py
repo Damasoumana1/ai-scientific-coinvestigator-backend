@@ -139,7 +139,12 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
                 response = await chat.ainvoke([HumanMessage(content=instruction_prompt)])
                 raw_content = response.content
             except Exception as e:
-                if "524" in str(e) or "timeout" in str(e).lower():
+                is_timeout = (
+                    "524" in str(e) 
+                    or "timeout" in str(e).lower() 
+                    or type(e).__name__ in ["APITimeoutError", "Timeout", "ReadTimeout", "TimeoutError"]
+                )
+                if is_timeout:
                     logger.warning("K2 API Timeout detected. Retrying with reduced token budget...")
                     # Réduction drastique pour passer le timeout
                     chat_config["max_tokens"] = 4000
@@ -196,9 +201,17 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
                 try:
                     # Tentative 1: Standard
                     k2_analysis = json.loads(clean_json)
-                except json.JSONDecodeError:
-                    # Tentative 2: Réparation (Fermeture des balises)
-                    logger.warning("JSON parsing failed, attempting auto-repair...")
+                except json.JSONDecodeError as e:
+                    if "Extra data" in str(e) and hasattr(e, "pos"):
+                        try:
+                            logger.warning(f"Extra data found at pos {e.pos}, attempting to truncate...")
+                            k2_analysis = json.loads(clean_json[:e.pos].strip())
+                        except Exception:
+                            pass
+                            
+                    if not k2_analysis:
+                        # Tentative 2: Réparation (Fermeture des balises)
+                        logger.warning("JSON parsing failed, attempting auto-repair...")
                     repaired = clean_json.strip()
                     open_braces = repaired.count('{')
                     close_braces = repaired.count('}')
