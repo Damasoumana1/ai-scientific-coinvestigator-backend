@@ -360,7 +360,13 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
             objective=proto_data.get("objective", "Objective"),
             steps=steps,
             hypothesis=proto_data.get("hypothesis", "TBD"),
-            expected_outcomes=proto_data.get("expected_outcomes", "TBD")
+            expected_outcomes=proto_data.get("expected_outcomes", "TBD"),
+            variables=proto_data.get("variables", []),
+            statistical_analysis_plan=proto_data.get("statistical_analysis_plan", "Standard descriptive statistics"),
+            success_criteria=proto_data.get("success_criteria", ["Completion of all steps"]),
+            estimated_duration_days=float(proto_data.get("estimated_duration_days", 30.0)),
+            alternative_approaches=proto_data.get("alternative_approaches", ["None specified"]),
+            risk_assessment=proto_data.get("risk_assessment", {"overall_risk": "low"})
         )
 
     def _log_reasoning(self, phase: str, step: str, description: str):
