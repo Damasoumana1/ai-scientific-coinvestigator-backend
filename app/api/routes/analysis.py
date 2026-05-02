@@ -554,7 +554,8 @@ async def get_specific_analysis(
         
         if analysis.result_data:
             for k, v in analysis.result_data.items():
-                response_dict[k] = v
+                if k not in ["id", "request_id", "project_id", "status", "model_used", "started_at", "completed_at"]:
+                    response_dict[k] = v
                 
         # Always normalize to ensure frontend doesn't crash or show 0%
         response_dict = _normalize_k2_result_for_frontend(response_dict)

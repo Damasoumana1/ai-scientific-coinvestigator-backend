@@ -8,6 +8,7 @@ import json
 import os
 import re
 import traceback
+import ast
 from app.models.schemas import (
     ScientificDocument, AnalysisResult, AnalysisRequest, AuditLog,
     ComparativeAnalysis, ExperimentalProtocol, ResearchGap, CounterHypothesis,
@@ -228,7 +229,12 @@ Start directly with <think> if needed, then output the JSON inside [RESULT] tags
                         k2_analysis = json.loads(repaired)
                         logger.info("JSON parsing successful after repair")
                     except Exception as e:
-                        logger.error(f"Auto-repair failed: {e}")
+                        try:
+                            # Try python eval for single quotes and trailing commas
+                            k2_analysis = ast.literal_eval(repaired)
+                            logger.info("JSON parsing successful using ast.literal_eval")
+                        except Exception as e2:
+                            logger.error(f"Auto-repair failed: {e}")
 
             # 6. Fallback en cas d'échec total de parsing
             if not k2_analysis:
