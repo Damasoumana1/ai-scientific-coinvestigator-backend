@@ -350,7 +350,13 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                     citations=gap.get("citations", [])
                 ))
             else:
-                gaps.append(ResearchGap(gap_description=str(gap), source_documents=[doc.id for doc in docs]))
+                gaps.append(ResearchGap(
+                    gap_description=str(gap),
+                    importance_score=0.5,
+                    related_variables=[],
+                    suggested_investigation="TBD",
+                    source_documents=[doc.id for doc in docs]
+                ))
 
         return ComparativeAnalysis(
             document_ids=[doc.id for doc in docs],
@@ -395,13 +401,21 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                     critical_parameters=s.get("critical_parameters", [])
                 ))
 
+        raw_vars = proto_data.get("variables", [])
+        valid_vars = []
+        for v in raw_vars:
+            if isinstance(v, dict):
+                valid_vars.append(v)
+            else:
+                valid_vars.append({"name": str(v), "type": "independent", "measurement_method": "TBD"})
+
         return ExperimentalProtocol(
             title=proto_data.get("title", "New Protocol"),
             objective=proto_data.get("objective", "Objective"),
             steps=steps,
             hypothesis=proto_data.get("hypothesis", "TBD"),
             expected_outcomes=proto_data.get("expected_outcomes", "TBD"),
-            variables=proto_data.get("variables", []),
+            variables=valid_vars,
             statistical_analysis_plan=proto_data.get("statistical_analysis_plan", "Standard descriptive statistics"),
             success_criteria=proto_data.get("success_criteria", ["Completion of all steps"]),
             estimated_duration_days=float(proto_data.get("estimated_duration_days", 30.0)),
