@@ -107,6 +107,12 @@ class K2ThinkEngine:
   "proposed_protocol": {{
     "title": "...",
     "objective": "...",
+    "hypothesis": "...",
+    "expected_outcomes": "...",
+    "variables": [
+       {{ "name": "...", "type": "independent", "measurement_method": "..." }}
+    ],
+    "risk_assessment": {{ "overall_risk": "low" }},
     "steps": [
        {{ "description": "...", "duration_hours": 1, "materials": [], "critical_parameters": [] }}
     ]
@@ -324,6 +330,19 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
             comp_analysis = self._convert_k2_to_comparative_analysis(k2_analysis, request.documents)
             hypotheses = self._convert_k2_to_counter_hypotheses(k2_analysis)
             protocol = await self._convert_k2_to_protocol(k2_analysis)
+            
+            # Ensure reasoning trace is populated for Audit Log
+            trace_val = k2_analysis.get("reasoning_trace")
+            if isinstance(trace_val, str):
+                self._log_reasoning("ANALYSIS", "K2 Synthesis", trace_val)
+            elif isinstance(trace_val, list):
+                for t in trace_val:
+                    if isinstance(t, dict) and "reasoning" in t:
+                        self.reasoning_trace.append(t)
+                    else:
+                        self._log_reasoning("ANALYSIS", "K2 Synthesis", str(t))
+            elif not self.reasoning_trace:
+                self._log_reasoning("ANALYSIS", "K2 Synthesis", "Analysis generated successfully.")
             
             result = AnalysisResult(
                 request_id=request_id,
