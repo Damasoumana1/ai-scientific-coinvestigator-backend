@@ -1,7 +1,7 @@
 """
 Routes analyses K2 Think
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Body
 from fastapi.responses import Response, FileResponse
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
@@ -586,7 +586,7 @@ async def get_specific_analysis(
 async def export_analysis(
     analysis_id: str,
     format: str,
-    request: dict, # Pass full context to avoid refetching for demo
+    request: dict = Body(...), # Pass full context to avoid refetching for demo
     current_user = Depends(get_current_user)
 ):
     """

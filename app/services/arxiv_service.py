@@ -29,19 +29,22 @@ class ArXivService:
         )
         
         results = []
-        for result in search.results():
-            try:
-                results.append({
-                    "id": result.get_short_id(),
-                    "title": result.title,
-                    "authors": [author.name for author in result.authors],
-                    "summary": result.summary,
-                    "url": result.pdf_url,
-                    "categories": result.categories,
-                    "publication_date": result.published.strftime("%Y-%m-%d") if result.published else None
-                })
-            except Exception as e:
-                logger.error(f"Error fetching metadata for {result.title}: {e}")
+        try:
+            for result in search.results():
+                try:
+                    results.append({
+                        "id": result.get_short_id(),
+                        "title": result.title,
+                        "authors": [author.name for author in result.authors],
+                        "summary": result.summary,
+                        "url": result.pdf_url,
+                        "categories": result.categories,
+                        "publication_date": result.published.strftime("%Y-%m-%d") if result.published else None
+                    })
+                except Exception as e:
+                    logger.error(f"Error fetching metadata for {result.title}: {e}")
+        except Exception as api_err:
+            logger.error(f"ArXiv API request failed (e.g., 429 Too Many Requests): {api_err}")
                 
         return results
 
