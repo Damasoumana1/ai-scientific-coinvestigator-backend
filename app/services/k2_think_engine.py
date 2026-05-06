@@ -76,7 +76,7 @@ class K2ThinkEngine:
 
 [YOUR TASK]
 1. Synthesize findings across all documents.
-2. Identify divergences, contradictions, and gaps.
+2. Identify divergences, contradictions, AND AT LEAST 2 RESEARCH GAPS OR OPPORTUNITIES.
 3. Propose a new experimental protocol.
 
 [FORMATTING RULES]
@@ -151,11 +151,11 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                 )
                 if is_timeout:
                     logger.warning("K2 API Timeout detected. Retrying with reduced token budget...")
-                    # Réduction drastique pour passer le timeout
-                    chat_config["max_tokens"] = 4000
+                    # Maintain max_tokens to prevent JSON truncation, just rely on reduced context
+                    chat_config["max_tokens"] = 8000
                     chat_config["timeout"] = 115
-                    # On réduit aussi le contexte dans le prompt pour la tentative de secours
-                    emergency_context = "\n\n".join([f"--- DOC: {d.title} ---\n{d.content[:3000]}" for d in request.documents])
+                    # Reduce the context even more aggressively to speed up generation
+                    emergency_context = "\n\n".join([f"--- DOC: {d.title} ---\n{d.content[:1500]}" for d in request.documents])
                     emergency_prompt = instruction_prompt.replace(context, emergency_context)
                     
                     chat = ChatOpenAI(**chat_config)
@@ -171,22 +171,24 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
             
             # Nettoyage des balises de pensée
             processed_content = raw_content
-            if "<think>" in processed_content and "</think>" in processed_content:
-                processed_content = re.sub(r'<think>.*?</think>', '', processed_content, flags=re.DOTALL)
+            if "</think>" in processed_content:
+                processed_content = processed_content.split("</think>")[-1].strip()
             elif "<think>" in processed_content:
                 processed_content = re.sub(r'<think>.*', '', processed_content, flags=re.DOTALL)
 
             candidates = []
             
             # Stratégie 1 : Chercher le vrai début du JSON (via reasoning_summary)
-            schema_match = re.search(r'(\{\s*["\']reasoning_summary["\'].*)', processed_content, re.DOTALL | re.IGNORECASE)
-            if schema_match:
-                cand = schema_match.group(1)
-                end_idx = cand.rfind('}')
-                if end_idx != -1:
-                    candidates.append(cand[:end_idx + 1])
-                else:
-                    candidates.append(cand) # Truncated
+            last_idx = processed_content.rfind('"reasoning_summary"')
+            if last_idx != -1:
+                start_idx = processed_content.rfind('{', 0, last_idx)
+                if start_idx != -1:
+                    cand = processed_content[start_idx:]
+                    end_idx = cand.rfind('}')
+                    if end_idx != -1:
+                        candidates.append(cand[:end_idx + 1])
+                    else:
+                        candidates.append(cand) # Truncated
             
             # Stratégie 2 : Blocs Markdown (prendre le DERNIER, car l'IA met souvent son JSON à la fin)
             json_blocks = re.findall(r'```(?:json)?\s*(\{.*?\})\s*```', processed_content, re.DOTALL | re.IGNORECASE)
@@ -213,6 +215,16 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
             # Fonction utilitaire pour réparer le JSON
             def repair_json(text):
                 repaired = text.strip()
+                
+                # Heuristic: if odd number of quotes, we are inside an unclosed string. Remove it.
+                if repaired.count('"') % 2 != 0:
+                    last_quote = repaired.rfind('"')
+                    if last_quote != -1:
+                        repaired = repaired[:last_quote].strip()
+                
+                # Strip trailing commas or colons before closing
+                repaired = repaired.rstrip(',:').strip()
+                
                 open_braces = repaired.count('{')
                 close_braces = repaired.count('}')
                 open_brackets = repaired.count('[')
@@ -262,6 +274,15 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
             
             if k2_analysis:
                 logger.info("JSON successfully extracted and parsed.")
+                # Unwrap if LLM wrapped everything in a single key like {"analysis": {...}}
+                if isinstance(k2_analysis, dict) and len(k2_analysis) == 1:
+                    inner = list(k2_analysis.values())[0]
+                    if isinstance(inner, dict):
+                        k2_analysis = inner
+                
+                # Unwrap if it's a list
+                if isinstance(k2_analysis, list) and len(k2_analysis) > 0 and isinstance(k2_analysis[0], dict):
+                    k2_analysis = k2_analysis[0]
 
             # 6. Fallback en cas d'échec total de parsing
             if not k2_analysis:
@@ -301,7 +322,7 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
             result = AnalysisResult(
                 request_id=request_id,
                 documents_analyzed=len(request.documents),
-                reasoning_summary=k2_analysis.get("reasoning_summary", "Analysis completed."),
+                reasoning_summary=k2_analysis.get("reasoning_summary") or k2_analysis.get("summary") or k2_analysis.get("executive_summary") or "Analysis completed.",
                 comparative_analysis=comp_analysis,
                 research_gaps=comp_analysis.research_gaps,
                 counter_hypotheses=hypotheses,
@@ -338,23 +359,39 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
         if not isinstance(raw_comp, dict): raw_comp = {}
         
         gaps = []
-        raw_gaps = k2_result.get("research_gaps", raw_comp.get("research_gaps", []))
+        # Aggressive extraction for research_gaps
+        raw_gaps = (
+            k2_result.get("research_gaps") or 
+            raw_comp.get("research_gaps") or 
+            k2_result.get("gaps") or 
+            raw_comp.get("gaps") or 
+            k2_result.get("opportunities") or
+            []
+        )
+        
+        if isinstance(raw_gaps, dict):
+            raw_gaps = list(raw_gaps.values())[0] if raw_gaps else []
+            
+        if not isinstance(raw_gaps, list):
+            raw_gaps = [raw_gaps]
+
         for gap in raw_gaps:
+            if not gap: continue
             if isinstance(gap, dict):
                 gaps.append(ResearchGap(
-                    gap_description=gap.get("description", "Gap"),
-                    importance_score=gap.get("importance_score", 0.5),
-                    related_variables=gap.get("related_variables", []),
-                    suggested_investigation=gap.get("suggested_investigation", "TBD"),
+                    gap_description=gap.get("description", gap.get("gap_description", gap.get("name", "Research Gap Detected"))),
+                    importance_score=float(gap.get("importance_score", gap.get("importance", 0.8))),
+                    related_variables=gap.get("related_variables", gap.get("variables", [])),
+                    suggested_investigation=gap.get("suggested_investigation", gap.get("investigation", "Investigation required")),
                     source_documents=[doc.id for doc in docs],
                     citations=gap.get("citations", [])
                 ))
             else:
                 gaps.append(ResearchGap(
                     gap_description=str(gap),
-                    importance_score=0.5,
+                    importance_score=0.8,
                     related_variables=[],
-                    suggested_investigation="TBD",
+                    suggested_investigation="Investigation required",
                     source_documents=[doc.id for doc in docs]
                 ))
 
