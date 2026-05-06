@@ -155,10 +155,23 @@ def _normalize_k2_result_for_frontend(result_dict: dict) -> dict:
             result_dict['comparative_analysis'] = comp_analysis
             
         # Ensure required fields exist
+        # Sync research gaps between root and comparative_analysis
+        root_gaps = result_dict.get('research_gaps', [])
+        comp_gaps = comp_analysis.get('research_gaps', [])
+        
+        if not root_gaps and comp_gaps:
+            result_dict['research_gaps'] = comp_gaps
+        elif not comp_gaps and root_gaps:
+            comp_analysis['research_gaps'] = root_gaps
+            
+        # Ensure required fields exist
         comp_analysis.setdefault('document_ids', result_dict.get('document_ids', []))
         comp_analysis.setdefault('divergences', [])
         comp_analysis.setdefault('contradictions', [])
-        comp_analysis.setdefault('common_findings', ['Analysis completed successfully'])
+        
+        if not comp_analysis.get('common_findings'):
+            comp_analysis['common_findings'] = ['Analysis completed successfully']
+            
         comp_analysis.setdefault('research_gaps', result_dict.get('research_gaps', []))
         comp_analysis.setdefault('confidence_score', result_dict.get('confidence_overall', 0.8))
     

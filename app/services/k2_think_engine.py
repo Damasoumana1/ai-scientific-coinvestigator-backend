@@ -177,10 +177,16 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
 
             candidates = []
             
-            # Stratégie 1 : Chercher le vrai début du JSON (via comparative_analysis)
-            last_idx = processed_content.rfind('"comparative_analysis"')
-            if last_idx != -1:
-                start_idx = processed_content.rfind('{', 0, last_idx)
+            # Stratégie Prioritaire : Le plus grand bloc d'accolades (souvent le plus fiable si </think> est bien géré)
+            start_idx = processed_content.find('{')
+            end_idx = processed_content.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                candidates.append(processed_content[start_idx:end_idx + 1])
+            
+            # Stratégie 1 : Chercher le vrai début du JSON (via comparative_analysis) - FIRST occurrence
+            first_idx = processed_content.find('"comparative_analysis"')
+            if first_idx != -1:
+                start_idx = processed_content.rfind('{', 0, first_idx)
                 if start_idx != -1:
                     cand = processed_content[start_idx:]
                     end_idx = cand.rfind('}')
@@ -204,12 +210,6 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                 json_inner = re.search(r'(\{.*\})', cand, re.DOTALL)
                 if json_inner:
                     candidates.append(json_inner.group(1).strip())
-                    
-            # Stratégie 4 : Le plus grand bloc d'accolades (fallback si les autres échouent)
-            start_idx = processed_content.find('{')
-            end_idx = processed_content.rfind('}')
-            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                candidates.append(processed_content[start_idx:end_idx + 1])
 
             # Fonction utilitaire pour réparer le JSON
             def repair_json(text):
