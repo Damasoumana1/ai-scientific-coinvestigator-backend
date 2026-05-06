@@ -87,8 +87,6 @@ class K2ThinkEngine:
 
 [JSON SCHEMA]
 {{
-  "reasoning_summary": "Extensive 200+ word technical summary of findings",
-  "confidence_overall": 0.95,
   "comparative_analysis": {{
     "document_ids": {json.dumps([doc.id for doc in request.documents])},
     "divergences": [
@@ -114,6 +112,7 @@ class K2ThinkEngine:
     ]
   }},
   "strategic_recommendations": [],
+  "reasoning_summary": "Extensive 200+ word technical summary of findings",
   "reasoning_trace": "Internal logic summary",
   "confidence_overall": 0.95
 }}
@@ -178,8 +177,8 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
 
             candidates = []
             
-            # Stratégie 1 : Chercher le vrai début du JSON (via reasoning_summary)
-            last_idx = processed_content.rfind('"reasoning_summary"')
+            # Stratégie 1 : Chercher le vrai début du JSON (via comparative_analysis)
+            last_idx = processed_content.rfind('"comparative_analysis"')
             if last_idx != -1:
                 start_idx = processed_content.rfind('{', 0, last_idx)
                 if start_idx != -1:
@@ -238,9 +237,16 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                 return repaired
 
             # 5. Parsing
-            for cand in candidates:
+            import pathlib
+            debug_dir = pathlib.Path(__file__).parent.parent.parent
+            with open(debug_dir / "k2_debug_raw.txt", "w", encoding="utf-8") as f:
+                f.write(raw_content)
+                
+            for i, cand in enumerate(candidates):
                 if not cand.strip():
                     continue
+                with open(debug_dir / f"k2_debug_cand_{i}.txt", "w", encoding="utf-8") as f:
+                    f.write(cand)
                     
                 # Tentative directe
                 try:
