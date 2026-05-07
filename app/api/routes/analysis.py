@@ -15,6 +15,7 @@ import os
 import re
 import traceback
 import glob
+from datetime import datetime
 from app.services.mock_intelligence import MockIntelligenceService
 from app.rag.pdf_parser import PDFParser
 from app.services.k2_think_engine import K2ThinkEngine
@@ -611,11 +612,12 @@ async def export_analysis(
         )
     
     elif format == "chart":
-        output_path = f"logs/chart_{analysis_id}.png"
+        output_path = f"static/charts/chart_{analysis_id}.png"
         chart_path = export_service.generate_strategy_charts(request, output_path)
         if not chart_path:
             raise HTTPException(status_code=400, detail="Cannot generate chart - no gaps found")
-        return FileResponse(chart_path, media_type="image/png")
+        # Return URL instead of binary for POST to help frontend integration
+        return {"url": f"/static/charts/chart_{analysis_id}.png?v={datetime.now().timestamp()}"}
     
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
@@ -668,10 +670,14 @@ async def export_analysis_get(
     # 4. Génération de l'export
     export_service = ExportService()
     if format == "chart":
-        output_path = f"logs/chart_{analysis_id}.png"
+        output_path = f"/tmp/chart_{analysis_id}.png"
         chart_path = export_service.generate_strategy_charts(context, output_path)
         if not chart_path:
             raise HTTPException(status_code=400, detail="Cannot generate chart - no gaps found")
-        return FileResponse(chart_path, media_type="image/png")
+        return FileResponse(
+            chart_path, 
+            media_type="image/png",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
     
     raise HTTPException(status_code=400, detail=f"Unsupported format for GET: {format}")

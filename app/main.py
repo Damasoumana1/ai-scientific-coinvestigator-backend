@@ -157,6 +157,12 @@ app.add_middleware(
 app.include_router(health_router)          # Health checks (/health/*)
 app.include_router(router, prefix="/api/v1")  # Main API (/api/v1/*)
 
+# Static files for charts and exports
+from fastapi.staticfiles import StaticFiles
+import os
+os.makedirs("static/charts", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/", tags=["Root"])
 async def root():
