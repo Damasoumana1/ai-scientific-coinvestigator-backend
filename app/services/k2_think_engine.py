@@ -82,6 +82,7 @@ class K2ThinkEngine:
 [FORMATTING RULES]
 - Output ONLY a valid JSON object.
 - NO preamble, NO explanations before or after JSON.
+- KEEP REASONING CONCISE: Focus on direct analysis to stay within processing time limits.
 - NO single quotes in the JSON keys or values.
 - Use valid citations e.g. (Author, Year).
 
@@ -136,9 +137,8 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                 "model": "MBZUAI-IFM/K2-Think-v2",
                 "openai_api_key": settings.K2_THINK_API_KEY,
                 "openai_api_base": settings.K2_THINK_API_URL,
-                "temperature": 0.1,
-                "max_tokens": 12000,
-                "timeout": 110, # Juste en dessous des 120s de Cloudflare pour catcher l'erreur proprement
+                "max_tokens": 6000,
+                "timeout": 95, 
                 "max_retries": 0 
             }
 
@@ -155,10 +155,10 @@ DO NOT USE <think> TAGS. DO NOT CONVERSE.
                     or type(e).__name__ in ["APITimeoutError", "Timeout", "ReadTimeout", "TimeoutError"]
                 )
                 if is_timeout:
-                    logger.warning("K2 API Timeout detected. Retrying with reduced token budget...")
+                    logger.warning("K2 API Timeout detected. Retrying with very reduced context...")
                     # Maintain max_tokens to prevent JSON truncation, just rely on reduced context
-                    chat_config["max_tokens"] = 8000
-                    chat_config["timeout"] = 115
+                    chat_config["max_tokens"] = 5000
+                    chat_config["timeout"] = 118
                     # Reduce the context even more aggressively to speed up generation
                     emergency_context = "\n\n".join([f"--- DOC: {d.title} ---\n{d.content[:1500]}" for d in request.documents])
                     emergency_prompt = instruction_prompt.replace(context, emergency_context)
